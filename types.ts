@@ -49,4 +49,4 @@ export interface Task {
   priority: 'Low' | 'Medium' | 'High';
 }
 
-export type ViewState = 'dashboard' | 'setups' | 'plants' | 'inventory' | 'troubleshoot' | 'calendar' | 'settings' | 'support';
+export type ViewState = 'dashboard' | 'setups' | 'plants' | 'inventory' | 'troubleshoot' | 'calendar';
