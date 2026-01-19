@@ -8,6 +8,7 @@ export interface Setup {
   reservoirSize: string;
   location: string;
   notes: string;
+  cost?: number;
 }
 
 export interface HarvestRecord {
@@ -29,6 +30,7 @@ export interface Plant {
   lastChecked: string;
   notes: string;
   harvestRecords: HarvestRecord[];
+  cost?: number;
 }
 
 export interface Equipment {
@@ -38,6 +40,8 @@ export interface Equipment {
   purchaseDate: string;
   status: 'Active' | 'Backup' | 'Broken';
   notes: string;
+  cost?: number;
+  setupId?: string;
 }
 
 export interface Ingredient {
@@ -48,6 +52,7 @@ export interface Ingredient {
   unit: string;
   purpose: 'Nutrient' | 'pH Adjuster' | 'Additive' | 'Water Treatment';
   notes: string;
+  cost?: number;
 }
 
 export interface Task {

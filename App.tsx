@@ -31,7 +31,9 @@ import {
   Scale,
   Activity,
   History,
-  Clock
+  Clock,
+  DollarSign,
+  PiggyBank
 } from 'lucide-react';
 import { 
   ViewState, Setup, Plant, Equipment, Ingredient, Task, HarvestRecord 
@@ -170,7 +172,7 @@ const LandingPage = ({ onEnterApp, onGoToSupport }: any) => (
   </div>
 );
 
-const ReportsView = ({ plants }: { plants: Plant[] }) => {
+const ReportsView = ({ plants, setups, inventory }: { plants: Plant[], setups: Setup[], inventory: {equipment: Equipment[], ingredients: Ingredient[]} }) => {
   const harvestSummary = useMemo(() => {
     const data: { [key: string]: number } = {};
     plants.forEach(p => {
@@ -179,7 +181,6 @@ const ReportsView = ({ plants }: { plants: Plant[] }) => {
         data[date] = (data[date] || 0) + Number(h.amount);
       });
     });
-    // Sort keys by date roughly
     return Object.entries(data).map(([label, value]) => ({ label, value }));
   }, [plants]);
 
@@ -193,25 +194,40 @@ const ReportsView = ({ plants }: { plants: Plant[] }) => {
   }, [plants]);
 
   const totalHarvest = plants.reduce((sum, p) => sum + (p.harvestRecords?.reduce((hSum, h) => hSum + Number(h.amount), 0) || 0), 0);
+  
+  const totalInvestment = useMemo(() => {
+    const setupCost = setups.reduce((s, x) => s + (x.cost || 0), 0);
+    const plantCost = plants.reduce((s, x) => s + (x.cost || 0), 0);
+    const equipCost = inventory.equipment.reduce((s, x) => s + (x.cost || 0), 0);
+    const ingredCost = inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0);
+    return setupCost + plantCost + equipCost + ingredCost;
+  }, [setups, plants, inventory]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-500 pb-20">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-emerald-600 text-white text-center p-8 border-none shadow-xl shadow-emerald-100">
-          <Scale size={32} className="mx-auto mb-4 text-emerald-200" />
-          <p className="text-emerald-100 font-bold uppercase tracking-widest text-[10px]">Total Accumulated Yield</p>
-          <h2 className="text-5xl font-black mt-2">{totalHarvest}<span className="text-xl">g</span></h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="bg-emerald-600 text-white text-center p-6 border-none shadow-xl shadow-emerald-100">
+          <Scale size={24} className="mx-auto mb-4 text-emerald-200" />
+          <p className="text-emerald-100 font-bold uppercase tracking-widest text-[10px]">Total Yield</p>
+          <h2 className="text-4xl font-black mt-1">{totalHarvest}<span className="text-lg">g</span></h2>
         </Card>
-        <Card className="text-center p-8 bg-white border-slate-100">
-          <Sprout size={32} className="mx-auto mb-4 text-emerald-500" />
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Active Producing Plants</p>
-          <h2 className="text-5xl font-black mt-2 text-slate-800">{plants.filter(p => p.status === 'Healthy').length}</h2>
+        <Card className="bg-slate-900 text-white text-center p-6 border-none shadow-xl">
+          <DollarSign size={24} className="mx-auto mb-4 text-emerald-400" />
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Investment</p>
+          <h2 className="text-4xl font-black mt-1">${totalInvestment.toFixed(2)}</h2>
         </Card>
-        <Card className="text-center p-8 bg-white border-slate-100">
-          <TrendingUp size={32} className="mx-auto mb-4 text-emerald-500" />
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Avg Yield / Plant</p>
-          <h2 className="text-5xl font-black mt-2 text-slate-800">
-            {plants.length ? (totalHarvest / plants.length).toFixed(1) : 0}<span className="text-xl">g</span>
+        <Card className="text-center p-6 bg-white border-slate-100">
+          <PiggyBank size={24} className="mx-auto mb-4 text-emerald-500" />
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Cost / Gram</p>
+          <h2 className="text-4xl font-black mt-1 text-slate-800">
+            ${totalHarvest > 0 ? (totalInvestment / totalHarvest).toFixed(2) : '0.00'}
+          </h2>
+        </Card>
+        <Card className="text-center p-6 bg-white border-slate-100">
+          <TrendingUp size={24} className="mx-auto mb-4 text-emerald-500" />
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Efficiency Index</p>
+          <h2 className="text-4xl font-black mt-1 text-slate-800">
+            {totalInvestment > 0 ? (totalHarvest / totalInvestment).toFixed(1) : '0'}<span className="text-sm">g/$</span>
           </h2>
         </Card>
       </div>
@@ -227,27 +243,26 @@ const ReportsView = ({ plants }: { plants: Plant[] }) => {
             </div>
           )}
         </Card>
-        <Card title="Top Performing Varieties">
-           <div className="space-y-4">
-              {varietyPerformance.slice(0, 5).map((v, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:bg-white hover:shadow-md transition-all">
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-100 text-amber-600 shadow-sm' : 'bg-slate-200 text-slate-500'}`}>
-                      {i + 1}
-                    </div>
-                    <div>
-                      <span className="font-black text-slate-800 block">{v.label}</span>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Variety Summary</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-black text-2xl text-emerald-600">{v.value}</span>
-                    <span className="text-xs font-bold text-slate-400 ml-1">g</span>
-                  </div>
-                </div>
-              ))}
-              {varietyPerformance.length === 0 && <div className="py-20 text-center text-slate-300 italic border-2 border-dashed border-slate-50 rounded-3xl">Start harvesting to see analytics</div>}
-           </div>
+        <Card title="Project Financials">
+          <div className="space-y-4">
+             {setups.map(s => {
+               const pCosts = plants.filter(p => p.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0);
+               const eCosts = inventory.equipment.filter(e => e.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0);
+               const total = (s.cost || 0) + pCosts + eCosts;
+               return (
+                 <div key={s.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                   <div>
+                     <span className="font-black text-slate-800 block">{s.name}</span>
+                     <span className="text-[10px] text-slate-400 font-bold uppercase">System + Associated Assets</span>
+                   </div>
+                   <div className="text-right">
+                     <span className="font-black text-xl text-slate-900">${total.toFixed(2)}</span>
+                   </div>
+                 </div>
+               );
+             })}
+             {setups.length === 0 && <div className="py-20 text-center text-slate-300 italic">No systems to track.</div>}
+          </div>
         </Card>
       </div>
     </div>
@@ -285,17 +300,15 @@ const PlantLifecycleTimeline = ({ plant }: { plant: Plant }) => {
 export default function App() {
   const [mode, setMode] = useState<'website' | 'platform'>('website');
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Start closed on mobile-first mindset
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [dailyTip, setDailyTip] = useState<string>("Loading your grower intelligence...");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Navigation Helper - Closes sidebar on mobile selection
   const navigateTo = (view: ViewState) => {
     setActiveView(view);
     setIsSidebarOpen(false);
   };
 
-  // Persistence State
   const [setups, setSetups] = useState<Setup[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
   const [inventory, setInventory] = useState<{equipment: Equipment[], ingredients: Ingredient[]}>({
@@ -305,7 +318,6 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [paypalId, setPaypalId] = useState<string>('gizmooo@yahoo.com');
 
-  // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'setup' | 'plant' | 'equip' | 'ingred' | 'harvest' | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -338,7 +350,6 @@ export default function App() {
     localStorage.setItem('hydro_paypal', paypalId);
   }, [setups, plants, inventory, tasks, paypalId]);
 
-  // CRUD Helpers
   const addSetup = (data: any) => setSetups([...setups, { ...data, id: Date.now().toString() }]);
   const updateSetup = (id: string, data: any) => setSetups(setups.map(s => s.id === id ? { ...s, ...data } : s));
   const deleteSetup = (id: string) => {
@@ -375,7 +386,7 @@ export default function App() {
   const addTask = (title: string, date: string) => setTasks([...tasks, { id: Date.now().toString(), title, date, completed: false, priority: 'Medium' }]);
 
   const seedAppData = () => {
-    const demoSetup: Setup = { id: 'demo-1', name: 'Kitchen Herb Station', type: 'Kratky', startDate: new Date(Date.now() - 60 * 86400000).toISOString(), reservoirSize: '10L', location: 'Kitchen Counter', notes: 'Beginner-friendly low maintenance setup.' };
+    const demoSetup: Setup = { id: 'demo-1', name: 'Kitchen Herb Station', type: 'Kratky', startDate: new Date(Date.now() - 60 * 86400000).toISOString(), reservoirSize: '10L', location: 'Kitchen Counter', notes: 'Beginner-friendly low maintenance setup.', cost: 45.00 };
     const demoPlant: Plant = { 
       id: 'demo-p1', 
       setupId: 'demo-1', 
@@ -387,6 +398,7 @@ export default function App() {
       status: 'Healthy', 
       lastChecked: new Date().toISOString(), 
       notes: 'Growing vigorously.',
+      cost: 5.50,
       harvestRecords: [
         { id: 'h1', date: new Date().toISOString(), amount: 15, unit: 'g' },
         { id: 'h2', date: new Date(Date.now() - 7 * 86400000).toISOString(), amount: 10, unit: 'g' },
@@ -395,7 +407,7 @@ export default function App() {
     };
     setSetups([demoSetup]);
     setPlants([demoPlant]);
-    alert("Demo garden seeded with lifecycle data!");
+    alert("Demo garden seeded with investment data!");
     navigateTo('dashboard');
   };
 
@@ -446,7 +458,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden"
@@ -454,7 +465,6 @@ export default function App() {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-100 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div className="p-8 flex items-center justify-between">
@@ -479,7 +489,6 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header className="h-20 glass-effect sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 border-b border-slate-100 shrink-0">
            <div className="flex items-center space-x-4">
@@ -498,10 +507,10 @@ export default function App() {
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: "Systems", val: setups.length, icon: Layers, color: "emerald" },
-                  { label: "Plants", val: plants.length, icon: Sprout, color: "sky" },
-                  { label: "Inventory", val: (inventory.equipment?.length || 0) + (inventory.ingredients?.length || 0), icon: FlaskConical, color: "indigo" },
-                  { label: "Tasks", val: tasks.filter((t: any) => !t.completed).length, icon: Calendar, color: "amber" }
+                  { label: "Systems", val: setups.length, icon: Layers },
+                  { label: "Plants", val: plants.length, icon: Sprout },
+                  { label: "Total Yield", val: `${plants.reduce((s, x) => s + (x.harvestRecords?.reduce((hS, h) => hS + h.amount, 0) || 0), 0)}g`, icon: Scale },
+                  { label: "Total Spent", val: `$${(setups.reduce((s, x) => s + (x.cost || 0), 0) + plants.reduce((s, x) => s + (x.cost || 0), 0) + inventory.equipment.reduce((s, x) => s + (x.cost || 0), 0) + inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0)).toFixed(0)}`, icon: DollarSign }
                 ].map((s, i) => (
                   <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div className="relative z-10">
@@ -512,6 +521,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              
               <Card className="bg-emerald-900 text-white border-none shadow-2xl relative overflow-hidden p-10">
                  <div className="absolute top-0 right-0 p-4 opacity-10"><Leaf size={140}/></div>
                  <div className="relative z-10 space-y-6">
@@ -525,9 +535,10 @@ export default function App() {
                    <Button onClick={() => navigateTo('guide')} variant="secondary" className="bg-white text-emerald-900 hover:bg-emerald-50 border-none">Browse the Growth Wiki</Button>
                  </div>
               </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2">
-                  <Card title="Recent Activity" action={<button onClick={() => navigateTo('calendar')} className="text-emerald-600 font-bold hover:underline">Full Schedule</button>}>
+                  <Card title="Upcoming Maintenance" action={<button onClick={() => navigateTo('calendar')} className="text-emerald-600 font-bold hover:underline">Full Schedule</button>}>
                     <div className="space-y-4">
                       {tasks.filter((t: any) => !t.completed).length === 0 ? (
                         <div className="text-center py-16 text-slate-300 italic border-2 border-dashed border-slate-50 rounded-3xl">
@@ -548,24 +559,26 @@ export default function App() {
                     </div>
                   </Card>
                 </div>
-                <Card title="Quick Analytics">
+                <Card title="Quick Investment Check">
                    <div className="space-y-6">
                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <div className="flex justify-between items-center mb-2">
-                           <span className="text-xs font-bold text-slate-400 uppercase">Yield Velocity</span>
-                           <BarChart3 size={14} className="text-emerald-500" />
+                           <span className="text-xs font-bold text-slate-400 uppercase">Operational Cost</span>
+                           <DollarSign size={14} className="text-emerald-500" />
                         </div>
                         <h4 className="text-3xl font-black text-slate-800">
-                          {plants.reduce((sum, p) => sum + (p.harvestRecords?.length || 0), 0)} <span className="text-xs font-bold text-slate-400">Total Harvests</span>
+                          ${inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0).toFixed(0)} <span className="text-xs font-bold text-slate-400">on supplies</span>
                         </h4>
                       </div>
-                      <Button variant="outline" className="w-full" onClick={() => navigateTo('reports')}>View Detailed Reports</Button>
+                      <Button variant="outline" className="w-full" onClick={() => navigateTo('reports')}>View Financial Reports</Button>
                    </div>
                 </Card>
               </div>
             </div>
           )}
-          {activeView === 'reports' && <ReportsView plants={plants} />}
+          
+          {activeView === 'reports' && <ReportsView plants={plants} setups={setups} inventory={inventory} />}
+          
           {activeView === 'plants' && (
              <div className="space-y-8 animate-in fade-in duration-500 pb-20">
                <div className="flex justify-between items-center">
@@ -581,20 +594,19 @@ export default function App() {
                             {p.status}
                           </p>
                           <span className="text-sm text-slate-500 italic">{p.variety}</span>
+                          {p.cost && <p className="text-xs font-bold text-emerald-600 mt-1">${p.cost} Investment</p>}
                         </div>
                         <div className="text-right">
                            <p className="text-xl font-black text-slate-800">{p.harvestRecords?.reduce((s, h) => s + Number(h.amount), 0) || 0}g</p>
                            <p className="text-[10px] text-slate-400 font-bold uppercase">Total Yield</p>
                         </div>
                      </div>
-                     
                      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                           <Activity size={10} /> Lifecycle Timeline
                         </p>
                         <PlantLifecycleTimeline plant={p} />
                      </div>
-
                      <div className="flex gap-3">
                         <Button variant="outline" className="text-xs py-2 px-3 flex-1 border-slate-100" onClick={() => { setSelectedItem(p); setModalType('harvest'); setIsModalOpen(true); }}>
                            <Scale size={14}/> Harvest Data
@@ -606,42 +618,67 @@ export default function App() {
                </div>
              </div>
           )}
-          
-          {/* Reuse the other views from the previous logic... */}
-          {activeView === 'guide' && <GuideView />}
-          {activeView === 'troubleshoot' && <TroubleshootView />}
+
           {activeView === 'setups' && (
              <div className="space-y-8 animate-in fade-in duration-500">
                <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Systems</h3><Button onClick={() => { setSelectedItem(null); setModalType('setup'); setIsModalOpen(true); }}>Add System</Button></div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {setups.map(s => (
-                   <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500 transition-colors"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16}/></button></div>}>
-                     <p className="text-xs font-bold text-emerald-600 uppercase mb-2">{s.type}</p>
-                     <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
-                     <div className="flex justify-between items-center text-xs text-slate-400 font-bold"><span>{s.location}</span><span>{s.reservoirSize}</span></div>
-                   </Card>
-                 ))}
+                 {setups.map(s => {
+                    const projectCost = (s.cost || 0) + 
+                                       plants.filter(p => p.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0) +
+                                       inventory.equipment.filter(e => e.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0);
+                    return (
+                      <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500 transition-colors"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16}/></button></div>}>
+                        <div className="flex justify-between items-center mb-2">
+                          <p className="text-xs font-bold text-emerald-600 uppercase">{s.type}</p>
+                          <span className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded-lg text-slate-500">PROJECT TOTAL: ${projectCost.toFixed(2)}</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
+                        <div className="flex justify-between items-center text-xs text-slate-400 font-bold"><span>{s.location}</span><span>{s.reservoirSize}</span></div>
+                      </Card>
+                    );
+                 })}
                  {setups.length === 0 && <div className="col-span-full py-20 text-center text-slate-300">No systems defined yet.</div>}
                </div>
              </div>
           )}
+
           {activeView === 'inventory' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex justify-between"><h3 className="text-2xl font-bold text-slate-800">Growth Pantry</h3><div className="flex gap-2"><Button variant="dark" onClick={() => { setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button onClick={() => { setModalType('ingred'); setIsModalOpen(true); }}>Add Ingredient</Button></div></div>
+               <div className="flex justify-between"><h3 className="text-2xl font-bold text-slate-800">Growth Pantry</h3><div className="flex gap-2"><Button variant="dark" onClick={() => { setSelectedItem(null); setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button onClick={() => { setSelectedItem(null); setModalType('ingred'); setIsModalOpen(true); }}>Add Ingredient</Button></div></div>
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  <Card title="Hardware">
                     <div className="space-y-2">
-                      {inventory.equipment.length === 0 ? <p className="text-slate-300 italic text-sm">No hardware logged.</p> : inventory.equipment.map(e => <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100"><span>{e.name} ({e.status})</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div>)}
+                      {inventory.equipment.length === 0 ? <p className="text-slate-300 italic text-sm">No hardware logged.</p> : inventory.equipment.map(e => (
+                        <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
+                          <div>
+                            <span className="font-bold text-slate-800">{e.name}</span>
+                            <span className="text-[10px] ml-2 text-slate-400 uppercase">({e.status})</span>
+                            {e.cost && <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">Cost: ${e.cost}</p>}
+                          </div>
+                          <button onClick={() => deleteEquipment(e.id)} className="text-red-400 hover:text-red-600 p-2"><Trash2 size={14}/></button>
+                        </div>
+                      ))}
                     </div>
                  </Card>
-                 <Card title="Nutrients">
+                 <Card title="Nutrients & Additives">
                     <div className="space-y-2">
-                      {inventory.ingredients.length === 0 ? <p className="text-slate-300 italic text-sm">No ingredients logged.</p> : inventory.ingredients.map(i => <div key={i.id} className="p-4 bg-white border border-slate-100 rounded-xl flex justify-between items-center shadow-sm"><span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div>)}
+                      {inventory.ingredients.length === 0 ? <p className="text-slate-300 italic text-sm">No ingredients logged.</p> : inventory.ingredients.map(i => (
+                        <div key={i.id} className="p-4 bg-white border border-slate-100 rounded-xl flex justify-between items-center shadow-sm group">
+                          <div>
+                            <span className="font-bold text-slate-800">{i.name}</span>
+                            <span className="text-xs text-slate-400 ml-2">{i.quantity}{i.unit}</span>
+                            {i.cost && <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">Cost: ${i.cost}</p>}
+                          </div>
+                          <button onClick={() => deleteIngredient(i.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-2"><Trash2 size={14}/></button>
+                        </div>
+                      ))}
                     </div>
                  </Card>
                </div>
             </div>
           )}
+
           {activeView === 'calendar' && (
             <div className="max-w-xl mx-auto space-y-6 animate-in fade-in duration-500">
                <h3 className="text-2xl font-bold text-slate-800">Tasks Schedule</h3>
@@ -655,15 +692,16 @@ export default function App() {
                </div>
             </div>
           )}
+
           {activeView === 'settings' && (
             <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-              <Card title="Developer Settings">
+              <Card title="Developer Utilities">
                  <div className="space-y-4">
-                   <p className="text-sm text-slate-500">Current PayPal ID: <strong>{paypalId}</strong></p>
-                   <Button onClick={seedAppData} variant="dark">Seed Demo Data with Analytics</Button>
+                   <p className="text-sm text-slate-500">Linked Payment Target: <strong>{paypalId}</strong></p>
+                   <Button onClick={seedAppData} variant="dark">Seed Demo Data with Financials</Button>
                  </div>
               </Card>
-              <Card title="Data Management">
+              <Card title="Data Continuity">
                  <div className="grid grid-cols-2 gap-4">
                    <Button onClick={handleExport} className="w-full"><Download size={18}/> Export Data</Button>
                    <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="w-full"><Upload size={18}/> Restore Data</Button>
@@ -672,6 +710,7 @@ export default function App() {
               </Card>
             </div>
           )}
+
           {activeView === 'support' && (
             <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500">
                <div className="text-center space-y-4">
@@ -689,15 +728,20 @@ export default function App() {
                </div>
             </div>
           )}
+          
+          {activeView === 'guide' && <GuideView />}
+          {activeView === 'troubleshoot' && <TroubleshootView />}
         </div>
       </main>
 
-      {/* Global Modals */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalType?.toUpperCase() || ''}>
          {modalType === 'setup' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { name: f.sname.value, type: f.stype.value, startDate: f.sdate.value, reservoirSize: f.ssize.value, location: f.sloc.value, notes: f.snotes.value }; selectedItem ? updateSetup(selectedItem.id, d) : addSetup(d); setIsModalOpen(false); }}>
+           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { name: f.sname.value, type: f.stype.value, startDate: f.sdate.value, reservoirSize: f.ssize.value, location: f.sloc.value, notes: f.snotes.value, cost: Number(f.scost.value) || 0 }; selectedItem ? updateSetup(selectedItem.id, d) : addSetup(d); setIsModalOpen(false); }}>
              <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option><option>Aeroponic</option><option>NFT</option></select>
+             <div className="flex gap-2">
+               <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option><option>Aeroponic</option><option>NFT</option></select>
+               <input name="scost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             </div>
              <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
@@ -715,9 +759,13 @@ export default function App() {
              floweredDate: f.pflow.value || undefined,
              status: f.pstatus.value,
              lastChecked: new Date().toISOString(), 
-             notes: f.pnotes.value 
+             notes: f.pnotes.value,
+             cost: Number(f.pcost.value) || 0
            }; selectedItem ? updatePlant(selectedItem.id, d) : addPlant(d); setIsModalOpen(false); }}>
-             <select name="pId" defaultValue={selectedItem?.setupId} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+             <div className="flex gap-2">
+                <select name="pId" defaultValue={selectedItem?.setupId} className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                <input name="pcost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             </div>
              <input name="pname" placeholder="Species (e.g. Basil)" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
              <input name="pvar" placeholder="Variety (e.g. Genovese)" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
              <div className="grid grid-cols-2 gap-4">
@@ -755,7 +803,7 @@ export default function App() {
                 <Button type="submit" className="w-full py-4">Save Harvest Record</Button>
               </form>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                 <h4 className="font-bold text-xs text-slate-400 uppercase tracking-widest px-2">Recent Logs for {selectedItem.name}</h4>
+                 <h4 className="font-bold text-xs text-slate-400 uppercase tracking-widest px-2">Logs for {selectedItem.name}</h4>
                  {selectedItem.harvestRecords?.slice().reverse().map((h: HarvestRecord) => (
                    <div key={h.id} className="p-3 bg-slate-50 rounded-xl flex justify-between items-center text-sm border border-slate-100">
                      <div>
@@ -765,22 +813,31 @@ export default function App() {
                      <button onClick={() => deleteHarvest(selectedItem.id, h.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                    </div>
                  ))}
-                 {(!selectedItem.harvestRecords || selectedItem.harvestRecords.length === 0) && <p className="text-center py-4 text-slate-300 italic text-xs">No records logged yet.</p>}
+                 {(!selectedItem.harvestRecords || selectedItem.harvestRecords.length === 0) && <p className="text-center py-4 text-slate-300 italic text-xs">No records yet.</p>}
               </div>
            </div>
          )}
-         {/* Inventory forms stay same... */}
          {modalType === 'equip' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: f.ename.value, category: f.ecat.value, status: 'Active', purchaseDate: new Date().toISOString(), notes: '' }); setIsModalOpen(false); }}>
+           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: f.ename.value, category: f.ecat.value, status: 'Active', purchaseDate: new Date().toISOString(), notes: '', cost: Number(f.ecost.value) || 0, setupId: f.eSetup.value || undefined }); setIsModalOpen(false); }}>
              <input name="ename" placeholder="Device Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <select name="ecat" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Lighting</option><option>Pump</option><option>Monitoring</option><option>Structural</option><option>Other</option></select>
+             <div className="flex gap-2">
+               <select name="ecat" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Lighting</option><option>Pump</option><option>Monitoring</option><option>Structural</option><option>Other</option></select>
+               <input name="ecost" type="number" step="0.01" placeholder="Cost ($)" className="w-28 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             </div>
+             <select name="eSetup" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none">
+               <option value="">General (No System)</option>
+               {setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+             </select>
              <Button type="submit" variant="dark" className="w-full py-4 text-lg">Inventory Gear</Button>
            </form>
          )}
          {modalType === 'ingred' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: f.iname.value, brand: f.ibrand.value, quantity: f.iqty.value, unit: f.iunit.value, purpose: f.ipurp.value, notes: '' }); setIsModalOpen(false); }}>
+           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: f.iname.value, brand: f.ibrand.value, quantity: f.iqty.value, unit: f.iunit.value, purpose: f.ipurp.value, notes: '', cost: Number(f.icost.value) || 0 }); setIsModalOpen(false); }}>
              <input name="iname" placeholder="Item Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <input name="ibrand" placeholder="Brand" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             <div className="flex gap-2">
+               <input name="ibrand" placeholder="Brand" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+               <input name="icost" type="number" step="0.01" placeholder="Cost ($)" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             </div>
              <select name="ipurp" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Nutrient</option><option>pH Adjuster</option><option>Additive</option><option>Water Treatment</option></select>
              <div className="flex gap-2">
                <input name="iqty" placeholder="Qty" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
