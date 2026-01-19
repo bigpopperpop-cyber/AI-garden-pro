@@ -28,8 +28,8 @@ import {
 } from 'lucide-react';
 import { 
   ViewState, Setup, Plant, Equipment, Ingredient, Task 
-} from './types';
-import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService';
+} from './types.ts';
+import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
@@ -294,12 +294,12 @@ const TroubleshootView = () => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <Card title="Describe Symptom">
-          <textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="What's wrong?" className="w-full h-48 p-6 rounded-3xl border bg-slate-50 outline-none mb-6 resize-none" />
-          <div className="relative border-4 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center mb-6 group cursor-pointer hover:border-emerald-200 transition-colors">
+          <textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="What's wrong?" className="w-full h-48 p-6 rounded-3xl border border-slate-100 bg-slate-50 outline-none mb-6 resize-none focus:ring-2 focus:ring-emerald-500" />
+          <div className="relative border-4 border-dashed border-slate-100 rounded-3xl p-10 flex flex-col items-center justify-center mb-6 group cursor-pointer hover:border-emerald-200 transition-colors">
             {image ? (
               <div className="relative w-full h-full">
                 <img src={image} className="w-full h-auto rounded-2xl shadow-xl" alt="Symptom" />
-                <button onClick={() => setImage(null)} className="absolute -top-4 -right-4 bg-red-500 text-white p-2 rounded-full shadow-lg"><X size={16}/></button>
+                <button onClick={() => setImage(null)} className="absolute -top-4 -right-4 bg-red-500 text-white p-2 rounded-full shadow-lg hover:scale-110 transition-transform"><X size={16}/></button>
               </div>
             ) : (
               <>
@@ -318,7 +318,7 @@ const TroubleshootView = () => {
         </Card>
         <Card title="Diagnosis">
           {diagnosis ? (
-            <div className="text-slate-700 leading-relaxed whitespace-pre-wrap p-8 bg-slate-50 rounded-3xl border animate-in fade-in zoom-in-95">{diagnosis}</div>
+            <div className="text-slate-700 leading-relaxed whitespace-pre-wrap p-8 bg-slate-50 rounded-3xl border border-slate-100 animate-in fade-in zoom-in-95">{diagnosis}</div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full py-32 text-slate-300 opacity-20">
               <Stethoscope size={100} className="mb-6" />
@@ -469,7 +469,7 @@ export default function App() {
               <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xl"><Sprout size={24} /></div>
               <h1 className="text-xl font-black text-slate-800 tracking-tighter">HydroGrow</h1>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2"><X/></button>
+            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><X/></button>
           </div>
           <nav className="flex-1 px-4 space-y-2 py-4 overflow-y-auto">
             <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
@@ -489,7 +489,7 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-20 glass-effect sticky top-0 z-30 flex items-center justify-between px-10 border-b border-slate-100 shrink-0">
            <div className="flex items-center space-x-4">
-             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500"><Menu/></button>
+             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu/></button>
              <h2 className="text-xl font-bold text-slate-800">{activeView.charAt(0).toUpperCase() + activeView.slice(1)}</h2>
            </div>
            <div className="flex items-center space-x-6">
@@ -508,7 +508,7 @@ export default function App() {
                <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Systems</h3><Button onClick={() => { setSelectedItem(null); setModalType('setup'); setIsModalOpen(true); }}>Add System</Button></div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {setups.map(s => (
-                   <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500"><Trash2 size={16}/></button></div>}>
+                   <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500 transition-colors"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16}/></button></div>}>
                      <p className="text-xs font-bold text-emerald-600 uppercase mb-2">{s.type}</p>
                      <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
                      <div className="flex justify-between items-center text-xs text-slate-400 font-bold"><span>{s.location}</span><span>{s.reservoirSize}</span></div>
@@ -522,7 +522,7 @@ export default function App() {
                <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Plants</h3><Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}>Log Plant</Button></div>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {plants.map(p => (
-                   <Card key={p.id} title={p.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(p); setModalType('plant'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deletePlant(p.id)} className="text-red-500"><Trash2 size={16}/></button></div>}>
+                   <Card key={p.id} title={p.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(p); setModalType('plant'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500 transition-colors"><Edit2 size={16}/></button><button onClick={() => deletePlant(p.id)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16}/></button></div>}>
                      <p className="text-xs font-black text-emerald-500 uppercase">{p.status}</p>
                      <p className="text-sm text-slate-500 italic mt-1">{p.variety}</p>
                    </Card>
@@ -536,12 +536,12 @@ export default function App() {
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  <Card title="Hardware">
                     <div className="space-y-2">
-                      {inventory.equipment.length === 0 ? <p className="text-slate-300 italic text-sm">No hardware logged.</p> : inventory.equipment.map(e => <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center"><span>{e.name} ({e.status})</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
+                      {inventory.equipment.length === 0 ? <p className="text-slate-300 italic text-sm">No hardware logged.</p> : inventory.equipment.map(e => <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100"><span>{e.name} ({e.status})</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div>)}
                     </div>
                  </Card>
                  <Card title="Nutrients">
                     <div className="space-y-2">
-                      {inventory.ingredients.length === 0 ? <p className="text-slate-300 italic text-sm">No ingredients logged.</p> : inventory.ingredients.map(i => <div key={i.id} className="p-4 bg-white border rounded-xl flex justify-between items-center"><span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
+                      {inventory.ingredients.length === 0 ? <p className="text-slate-300 italic text-sm">No ingredients logged.</p> : inventory.ingredients.map(i => <div key={i.id} className="p-4 bg-white border border-slate-100 rounded-xl flex justify-between items-center shadow-sm"><span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div>)}
                     </div>
                  </Card>
                </div>
@@ -556,7 +556,7 @@ export default function App() {
                  <Button type="submit">Add</Button>
                </form>
                <div className="space-y-2">
-                 {tasks.length === 0 ? <p className="text-center py-12 text-slate-300">Schedule is clear!</p> : tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border flex justify-between items-center shadow-sm"><div><p className="font-bold text-slate-800">{t.title}</p><p className="text-xs text-slate-400 font-medium">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={18}/></button></div>)}
+                 {tasks.length === 0 ? <p className="text-center py-12 text-slate-300">Schedule is clear!</p> : tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border border-slate-100 flex justify-between items-center shadow-sm"><div><p className="font-bold text-slate-800">{t.title}</p><p className="text-xs text-slate-400 font-medium">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={18}/></button></div>)}
                </div>
             </div>
           )}
@@ -602,7 +602,7 @@ export default function App() {
          {modalType === 'setup' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { name: f.sname.value, type: f.stype.value, startDate: f.sdate.value, reservoirSize: f.ssize.value, location: f.sloc.value, notes: f.snotes.value }; selectedItem ? updateSetup(selectedItem.id, d) : addSetup(d); setIsModalOpen(false); }}>
              <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option></select>
+             <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option><option>Aeroponic</option><option>NFT</option></select>
              <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
@@ -613,25 +613,27 @@ export default function App() {
          {modalType === 'plant' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { setupId: f.pId.value, name: f.pname.value, variety: f.pvar.value, plantedDate: f.pdate.value, status: 'Healthy', lastChecked: new Date().toISOString(), notes: '' }; selectedItem ? updatePlant(selectedItem.id, d) : addPlant(d); setIsModalOpen(false); }}>
              <select name="pId" defaultValue={selectedItem?.setupId} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-             <input name="pname" placeholder="Species" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <input name="pvar" placeholder="Variety" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <input name="pname" placeholder="Species (e.g. Basil)" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <input name="pvar" placeholder="Variety (e.g. Genovese)" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
              <input name="pdate" type="date" defaultValue={selectedItem?.plantedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Add"} Plant</Button>
            </form>
          )}
          {modalType === 'equip' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: f.ename.value, category: 'Hardware', status: 'Active', purchaseDate: new Date().toISOString(), notes: '' }); setIsModalOpen(false); }}>
+           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: f.ename.value, category: f.ecat.value, status: 'Active', purchaseDate: new Date().toISOString(), notes: '' }); setIsModalOpen(false); }}>
              <input name="ename" placeholder="Device Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <select name="ecat" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Lighting</option><option>Pump</option><option>Monitoring</option><option>Structural</option><option>Other</option></select>
              <Button type="submit" variant="dark" className="w-full py-4 text-lg">Inventory Gear</Button>
            </form>
          )}
          {modalType === 'ingred' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: f.iname.value, brand: f.ibrand.value, quantity: f.iqty.value, unit: f.iunit.value, purpose: 'Nutrient', notes: '' }); setIsModalOpen(false); }}>
+           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: f.iname.value, brand: f.ibrand.value, quantity: f.iqty.value, unit: f.iunit.value, purpose: f.ipurp.value, notes: '' }); setIsModalOpen(false); }}>
              <input name="iname" placeholder="Item Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
              <input name="ibrand" placeholder="Brand" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             <select name="ipurp" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Nutrient</option><option>pH Adjuster</option><option>Additive</option><option>Water Treatment</option></select>
              <div className="flex gap-2">
                <input name="iqty" placeholder="Qty" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-               <input name="iunit" placeholder="Unit" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+               <input name="iunit" placeholder="Unit (e.g. ml)" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              </div>
              <Button type="submit" className="w-full py-4 text-lg">Save Item</Button>
            </form>
