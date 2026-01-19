@@ -28,8 +28,8 @@ import {
 } from 'lucide-react';
 import { 
   ViewState, Setup, Plant, Equipment, Ingredient, Task 
-} from './types.ts';
-import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService.ts';
+} from './types';
+import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService';
 
 // --- Shared UI Components ---
 
@@ -290,12 +290,12 @@ const TroubleshootView = () => {
     <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom duration-500">
       <div className="text-center space-y-4">
         <h2 className="text-4xl font-black text-slate-800">AI Plant Consultant</h2>
-        <p className="text-slate-500 text-lg">Upload a photo or describe symptoms for a professional diagnosis.</p>
+        <p className="text-slate-500 text-lg">Describe or photograph plant symptoms for a professional diagnosis.</p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <Card title="Describe Symptom">
-          <textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="Describe what you see..." className="w-full h-48 p-6 rounded-3xl border border-slate-100 bg-slate-50 outline-none focus:ring-4 focus:ring-emerald-500/10 mb-6 resize-none" />
-          <div className="relative border-4 border-dashed border-slate-100 rounded-3xl p-10 flex flex-col items-center justify-center hover:border-emerald-200 transition-colors mb-6 group cursor-pointer">
+          <textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="What's wrong?" className="w-full h-48 p-6 rounded-3xl border bg-slate-50 outline-none mb-6 resize-none" />
+          <div className="relative border-4 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center mb-6 group cursor-pointer hover:border-emerald-200 transition-colors">
             {image ? (
               <div className="relative w-full h-full">
                 <img src={image} className="w-full h-auto rounded-2xl shadow-xl" alt="Symptom" />
@@ -317,18 +317,14 @@ const TroubleshootView = () => {
           </Button>
         </Card>
         <Card title="Diagnosis">
-          <div className="prose prose-emerald max-w-none">
-            {diagnosis ? (
-              <div className="text-slate-700 leading-relaxed whitespace-pre-wrap p-8 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
-                {diagnosis}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full py-32 text-slate-300 opacity-20">
-                <Stethoscope size={100} className="mb-6" />
-                <p className="text-xl font-black italic">Waiting for input...</p>
-              </div>
-            )}
-          </div>
+          {diagnosis ? (
+            <div className="text-slate-700 leading-relaxed whitespace-pre-wrap p-8 bg-slate-50 rounded-3xl border animate-in fade-in zoom-in-95">{diagnosis}</div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full py-32 text-slate-300 opacity-20">
+              <Stethoscope size={100} className="mb-6" />
+              <p className="text-xl font-black italic">Waiting for input...</p>
+            </div>
+          )}
         </Card>
       </div>
     </div>
@@ -508,22 +504,22 @@ export default function App() {
           {activeView === 'guide' && <GuideView />}
           {activeView === 'troubleshoot' && <TroubleshootView />}
           {activeView === 'setups' && (
-             <div className="space-y-8">
-               <div className="flex justify-between items-center"><h3 className="text-2xl font-bold">Systems</h3><Button onClick={() => { setSelectedItem(null); setModalType('setup'); setIsModalOpen(true); }}>Add System</Button></div>
+             <div className="space-y-8 animate-in fade-in duration-500">
+               <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Systems</h3><Button onClick={() => { setSelectedItem(null); setModalType('setup'); setIsModalOpen(true); }}>Add System</Button></div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {setups.map(s => (
                    <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500"><Trash2 size={16}/></button></div>}>
                      <p className="text-xs font-bold text-emerald-600 uppercase mb-2">{s.type}</p>
                      <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
-                     <div className="flex justify-between items-center text-xs text-slate-400"><span>{s.location}</span><span>{s.reservoirSize}</span></div>
+                     <div className="flex justify-between items-center text-xs text-slate-400 font-bold"><span>{s.location}</span><span>{s.reservoirSize}</span></div>
                    </Card>
                  ))}
                </div>
              </div>
           )}
           {activeView === 'plants' && (
-             <div className="space-y-8">
-               <div className="flex justify-between items-center"><h3 className="text-2xl font-bold">Plants</h3><Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}>Log Plant</Button></div>
+             <div className="space-y-8 animate-in fade-in duration-500">
+               <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Plants</h3><Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}>Log Plant</Button></div>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {plants.map(p => (
                    <Card key={p.id} title={p.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(p); setModalType('plant'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deletePlant(p.id)} className="text-red-500"><Trash2 size={16}/></button></div>}>
@@ -535,37 +531,37 @@ export default function App() {
              </div>
           )}
           {activeView === 'inventory' && (
-            <div className="space-y-8">
-               <div className="flex justify-between"><h3 className="text-2xl font-bold">Growth Pantry</h3><div className="flex gap-2"><Button variant="dark" onClick={() => { setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button onClick={() => { setModalType('ingred'); setIsModalOpen(true); }}>Add Ingredient</Button></div></div>
+            <div className="space-y-8 animate-in fade-in duration-500">
+               <div className="flex justify-between"><h3 className="text-2xl font-bold text-slate-800">Growth Pantry</h3><div className="flex gap-2"><Button variant="dark" onClick={() => { setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button onClick={() => { setModalType('ingred'); setIsModalOpen(true); }}>Add Ingredient</Button></div></div>
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  <Card title="Hardware">
                     <div className="space-y-2">
-                      {inventory.equipment.map(e => <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center"><span>{e.name} ({e.status})</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
+                      {inventory.equipment.length === 0 ? <p className="text-slate-300 italic text-sm">No hardware logged.</p> : inventory.equipment.map(e => <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center"><span>{e.name} ({e.status})</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
                     </div>
                  </Card>
                  <Card title="Nutrients">
                     <div className="space-y-2">
-                      {inventory.ingredients.map(i => <div key={i.id} className="p-4 bg-white border rounded-xl flex justify-between items-center"><span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
+                      {inventory.ingredients.length === 0 ? <p className="text-slate-300 italic text-sm">No ingredients logged.</p> : inventory.ingredients.map(i => <div key={i.id} className="p-4 bg-white border rounded-xl flex justify-between items-center"><span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
                     </div>
                  </Card>
                </div>
             </div>
           )}
           {activeView === 'calendar' && (
-            <div className="max-w-xl mx-auto space-y-6">
-               <h3 className="text-2xl font-bold">Tasks Schedule</h3>
+            <div className="max-w-xl mx-auto space-y-6 animate-in fade-in duration-500">
+               <h3 className="text-2xl font-bold text-slate-800">Tasks Schedule</h3>
                <form onSubmit={e => { e.preventDefault(); const f = e.target as any; addTask(f.task.value, f.date.value); f.reset(); }} className="flex gap-2">
-                 <input name="task" required placeholder="What to do?" className="flex-1 p-4 border rounded-2xl bg-white" />
-                 <input name="date" required type="date" className="p-4 border rounded-2xl bg-white" />
+                 <input name="task" required placeholder="What to do?" className="flex-1 p-4 border rounded-2xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                 <input name="date" required type="date" className="p-4 border rounded-2xl bg-white shadow-sm outline-none" />
                  <Button type="submit">Add</Button>
                </form>
                <div className="space-y-2">
-                 {tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border flex justify-between items-center"><div><p className="font-bold">{t.title}</p><p className="text-xs text-slate-400">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400"><Trash2 size={18}/></button></div>)}
+                 {tasks.length === 0 ? <p className="text-center py-12 text-slate-300">Schedule is clear!</p> : tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border flex justify-between items-center shadow-sm"><div><p className="font-bold text-slate-800">{t.title}</p><p className="text-xs text-slate-400 font-medium">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={18}/></button></div>)}
                </div>
             </div>
           )}
           {activeView === 'settings' && (
-            <div className="max-w-4xl mx-auto space-y-8">
+            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
               <Card title="Developer Settings">
                  <div className="space-y-4">
                    <p className="text-sm text-slate-500">Current PayPal ID: <strong>{paypalId}</strong></p>
@@ -582,16 +578,16 @@ export default function App() {
             </div>
           )}
           {activeView === 'support' && (
-            <div className="max-w-4xl mx-auto space-y-12">
+            <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500">
                <div className="text-center space-y-4">
-                 <h2 className="text-5xl font-black">Support Us</h2>
-                 <p className="text-slate-500">Fuel the project growth.</p>
+                 <h2 className="text-5xl font-black text-slate-800">Support <span className="text-emerald-600">Us</span></h2>
+                 <p className="text-slate-500 text-lg">Help us grow and improve the platform.</p>
                </div>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   {[5, 15, 50].map(amt => (
-                    <Card key={amt} className="text-center p-8">
+                    <Card key={amt} className="text-center p-8 hover:shadow-2xl transition-all hover:-translate-y-1">
                       <Heart className="mx-auto text-red-500 mb-4" size={40} />
-                      <h4 className="text-3xl font-black mb-6">${amt}</h4>
+                      <h4 className="text-3xl font-black mb-6 text-slate-800">${amt}</h4>
                       <Button onClick={() => window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=${paypalId}&amount=${amt}&currency_code=USD`, '_blank')} className="w-full">Donate</Button>
                     </Card>
                   ))}
@@ -605,39 +601,39 @@ export default function App() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalType?.toUpperCase() || ''}>
          {modalType === 'setup' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { name: f.sname.value, type: f.stype.value, startDate: f.sdate.value, reservoirSize: f.ssize.value, location: f.sloc.value, notes: f.snotes.value }; selectedItem ? updateSetup(selectedItem.id, d) : addSetup(d); setIsModalOpen(false); }}>
-             <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="w-full p-4 bg-slate-50 rounded-2xl border"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option></select>
-             <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <textarea name="snotes" placeholder="Notes" defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border h-24" />
-             <Button type="submit" className="w-full">{selectedItem ? "Update" : "Create"} System</Button>
+             <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option></select>
+             <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             <textarea name="snotes" placeholder="Notes" defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 h-24 outline-none focus:ring-4 focus:ring-emerald-500/5 resize-none" />
+             <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Create"} System</Button>
            </form>
          )}
          {modalType === 'plant' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { setupId: f.pId.value, name: f.pname.value, variety: f.pvar.value, plantedDate: f.pdate.value, status: 'Healthy', lastChecked: new Date().toISOString(), notes: '' }; selectedItem ? updatePlant(selectedItem.id, d) : addPlant(d); setIsModalOpen(false); }}>
-             <select name="pId" defaultValue={selectedItem?.setupId} className="w-full p-4 bg-slate-50 rounded-2xl border"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-             <input name="pname" placeholder="Species" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <input name="pvar" placeholder="Variety" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <input name="pdate" type="date" defaultValue={selectedItem?.plantedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <Button type="submit" className="w-full">{selectedItem ? "Update" : "Add"} Plant</Button>
+             <select name="pId" defaultValue={selectedItem?.setupId} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+             <input name="pname" placeholder="Species" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <input name="pvar" placeholder="Variety" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <input name="pdate" type="date" defaultValue={selectedItem?.plantedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+             <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Add"} Plant</Button>
            </form>
          )}
          {modalType === 'equip' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: f.ename.value, category: 'Hardware', status: 'Active', purchaseDate: new Date().toISOString(), notes: '' }); setIsModalOpen(false); }}>
-             <input name="ename" placeholder="Device Name" required className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <Button type="submit" variant="dark" className="w-full">Inventory Gear</Button>
+             <input name="ename" placeholder="Device Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <Button type="submit" variant="dark" className="w-full py-4 text-lg">Inventory Gear</Button>
            </form>
          )}
          {modalType === 'ingred' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: f.iname.value, brand: f.ibrand.value, quantity: f.iqty.value, unit: f.iunit.value, purpose: 'Nutrient', notes: '' }); setIsModalOpen(false); }}>
-             <input name="iname" placeholder="Item Name" required className="w-full p-4 bg-slate-50 rounded-2xl border" />
-             <input name="ibrand" placeholder="Brand" className="w-full p-4 bg-slate-50 rounded-2xl border" />
+             <input name="iname" placeholder="Item Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <input name="ibrand" placeholder="Brand" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              <div className="flex gap-2">
-               <input name="iqty" placeholder="Qty" className="flex-1 p-4 bg-slate-50 rounded-2xl border" />
-               <input name="iunit" placeholder="Unit" className="w-24 p-4 bg-slate-50 rounded-2xl border" />
+               <input name="iqty" placeholder="Qty" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+               <input name="iunit" placeholder="Unit" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
              </div>
-             <Button type="submit" className="w-full">Save Item</Button>
+             <Button type="submit" className="w-full py-4 text-lg">Save Item</Button>
            </form>
          )}
       </Modal>
