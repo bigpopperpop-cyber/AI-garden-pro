@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -120,7 +119,7 @@ export default function App() {
   const [modalType, setModalType] = useState<any>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  // --- CRITICAL FIX: Forces the window to scroll to the top when switching modes or views ---
+  // Scroll fix for navigation
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [mode, activeView]);
@@ -193,9 +192,20 @@ export default function App() {
       lastChecked: new Date().toISOString(),
       notes: 'First true leaves appearing.'
     };
+    const demoIngredient: Ingredient = {
+      id: 'demo-i1',
+      name: 'FloraNova Bloom',
+      brand: 'General Hydroponics',
+      quantity: '500',
+      unit: 'ml',
+      purpose: 'Nutrient',
+      notes: 'Standard bloom nutrient.'
+    };
     setSetups([demoSetup]);
     setPlants([demoPlant]);
-    alert("Demo garden seeded! Refresh the dashboard.");
+    setInventory(prev => ({ ...prev, ingredients: [demoIngredient] }));
+    alert("Demo garden seeded! Refreshing to dashboard...");
+    setActiveView('dashboard');
   };
 
   // Backup & Restore
@@ -369,7 +379,7 @@ export default function App() {
                   <option>Healthy</option><option>Needs Attention</option><option>Struggling</option><option>Harvested</option>
                </select>
              </div>
-             <textarea name="pnotes" placeholder="Growth notes, pruning history..." defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 h-32" />
+             <textarea name="pnotes" placeholder="Growth notes..." defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 h-32" />
              <Button type="submit" className="w-full py-4 text-lg">Save Plant Data</Button>
            </form>
          )}
@@ -387,7 +397,7 @@ export default function App() {
              });
              setIsModalOpen(false);
            }}>
-             <input name="ename" required placeholder="Device Name (e.g. T5 Light Rack)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100" />
+             <input name="ename" required placeholder="Device Name" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100" />
              <select name="ecat" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none">
                <option>Lighting</option><option>Pump</option><option>Monitoring</option><option>Structural</option><option>Other</option>
              </select>
@@ -413,7 +423,7 @@ export default function App() {
              });
              setIsModalOpen(false);
            }}>
-             <input name="iname" required placeholder="Substance Name (e.g. FloraGrow)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100" />
+             <input name="iname" required placeholder="Substance Name" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100" />
              <input name="ibrand" placeholder="Brand" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100" />
              <div className="grid grid-cols-2 gap-4">
                <input name="iqty" placeholder="Qty" className="p-4 bg-slate-50 rounded-2xl border border-slate-100" />

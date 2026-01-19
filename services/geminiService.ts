@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 export const troubleshootPlant = async (description: string, imageBase64?: string) => {

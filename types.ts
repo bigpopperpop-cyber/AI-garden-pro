@@ -1,4 +1,3 @@
-
 export type SystemType = 'Hydroponic' | 'Aquaponic' | 'Aeroponic' | 'Kratky' | 'DWC' | 'NFT';
 
 export interface Setup {
