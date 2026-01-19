@@ -10,15 +10,25 @@ export interface Setup {
   notes: string;
 }
 
+export interface HarvestRecord {
+  id: string;
+  date: string;
+  amount: number; // weight or count
+  unit: string;   // g, kg, pieces
+}
+
 export interface Plant {
   id: string;
   setupId: string;
   name: string;
   variety: string;
   plantedDate: string;
+  germinatedDate?: string;
+  floweredDate?: string;
   status: 'Healthy' | 'Needs Attention' | 'Struggling' | 'Harvested';
   lastChecked: string;
   notes: string;
+  harvestRecords: HarvestRecord[];
 }
 
 export interface Equipment {
@@ -48,4 +58,4 @@ export interface Task {
   priority: 'Low' | 'Medium' | 'High';
 }
 
-export type ViewState = 'dashboard' | 'setups' | 'plants' | 'inventory' | 'troubleshoot' | 'calendar' | 'settings' | 'support' | 'guide';
+export type ViewState = 'dashboard' | 'setups' | 'plants' | 'inventory' | 'troubleshoot' | 'calendar' | 'settings' | 'support' | 'guide' | 'reports';

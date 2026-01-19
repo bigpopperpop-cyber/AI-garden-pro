@@ -1,8 +1,12 @@
+
 import { GoogleGenAI } from "@google/genai";
 
+// AI troubleshooting function using Gemini Pro for expert plant diagnosis
 export const troubleshootPlant = async (description: string, imageBase64?: string) => {
+  // Always create a new instance right before use to ensure latest API key
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
+  // Using gemini-3-pro-preview for complex reasoning and STEM analysis as per guidelines
+  const model = 'gemini-3-pro-preview';
 
   let contents;
   if (imageBase64) {
@@ -27,6 +31,7 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
         temperature: 0.7,
       }
     });
+    // response.text is a property, not a method
     return response.text || "I couldn't generate a diagnosis. Please try again with more details.";
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -34,6 +39,7 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
   }
 };
 
+// Fetches growth guides for specific topics using Flash for speed and basic Q&A
 export const getGrowGuide = async (topic: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
@@ -48,6 +54,7 @@ export const getGrowGuide = async (topic: string) => {
   }
 };
 
+// Generates a daily expert tip for the dashboard
 export const getDailyTip = async () => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
@@ -62,6 +69,7 @@ export const getDailyTip = async () => {
   }
 };
 
+// Provides specific advice for a plant in a given system type
 export const getPlantingAdvice = async (plantName: string, systemType: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
