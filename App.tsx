@@ -24,13 +24,12 @@ import {
   Lock,
   BookOpen,
   Download,
-  Upload,
-  Info
+  Upload
 } from 'lucide-react';
 import { 
   ViewState, Setup, Plant, Equipment, Ingredient, Task 
-} from './types';
-import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService';
+} from './types.ts';
+import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
