@@ -35,6 +35,20 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
   }
 };
 
+export const getGrowGuide = async (topic: string) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const model = 'gemini-3-flash-preview';
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: { parts: [{ text: `Explain the topic "${topic}" for a beginner indoor hydroponic or aquaponic grower. Use simple terms, analogies, and explain WHY it matters. Keep it under 300 words and use Markdown.` }] },
+    });
+    return response.text || "Could not find guide content.";
+  } catch (error) {
+    return "Error fetching guide.";
+  }
+};
+
 export const getDailyTip = async () => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';

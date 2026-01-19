@@ -35,12 +35,16 @@ import {
   Gift,
   Star,
   ExternalLink,
-  CreditCard
+  CreditCard,
+  Lock,
+  BookOpen,
+  Info,
+  Lightbulb
 } from 'lucide-react';
 import { 
   ViewState, Setup, Plant, Equipment, Ingredient, Task, SystemType 
 } from './types';
-import { troubleshootPlant, getDailyTip } from './services/geminiService';
+import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService';
 
 // --- Shared UI Components ---
 
@@ -80,7 +84,7 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
   );
 };
 
-const Card = ({ children, title, action, className = "" }: { children?: React.ReactNode, title?: string, action?: React.ReactNode, className?: string }) => (
+const Card = ({ children, title, action, className = "" }: any) => (
   <div className={`bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col ${className}`}>
     {(title || action) && (
       <div className="flex justify-between items-center mb-6">
@@ -168,6 +172,32 @@ export default function App() {
 
   const addTask = (title: string, date: string) => setTasks([...tasks, { id: Date.now().toString(), title, date, completed: false, priority: 'Medium' }]);
 
+  // Developer Helper: Seed Data
+  const seedAppData = () => {
+    const demoSetup: Setup = {
+      id: 'demo-1',
+      name: 'Kitchen Herb Station',
+      type: 'Kratky',
+      startDate: new Date().toISOString(),
+      reservoirSize: '10L',
+      location: 'Kitchen Counter',
+      notes: 'Beginner-friendly low maintenance setup.'
+    };
+    const demoPlant: Plant = {
+      id: 'demo-p1',
+      setupId: 'demo-1',
+      name: 'Sweet Basil',
+      variety: 'Genovese',
+      plantedDate: new Date().toISOString(),
+      status: 'Healthy',
+      lastChecked: new Date().toISOString(),
+      notes: 'First true leaves appearing.'
+    };
+    setSetups([demoSetup]);
+    setPlants([demoPlant]);
+    alert("Demo garden seeded! Refresh the dashboard.");
+  };
+
   // Backup & Restore
   const handleExport = () => {
     const data = { setups, plants, inventory, tasks, exportedAt: new Date().toISOString() };
@@ -226,22 +256,23 @@ export default function App() {
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2"><X/></button>
           </div>
-          <nav className="flex-1 px-4 space-y-2 py-4">
+          <nav className="flex-1 px-4 space-y-2 py-4 overflow-y-auto">
             <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
             <SidebarItem icon={Layers} label="Systems" active={activeView === 'setups'} onClick={() => setActiveView('setups')} />
             <SidebarItem icon={Sprout} label="Plants" active={activeView === 'plants'} onClick={() => setActiveView('plants')} />
+            <SidebarItem icon={BookOpen} label="Grower's Wiki" active={activeView === 'guide'} onClick={() => setActiveView('guide')} />
             <SidebarItem icon={Stethoscope} label="AI Consultant" active={activeView === 'troubleshoot'} onClick={() => setActiveView('troubleshoot')} />
             <SidebarItem icon={FlaskConical} label="Inventory" active={activeView === 'inventory'} onClick={() => setActiveView('inventory')} />
             <SidebarItem icon={Calendar} label="Calendar" active={activeView === 'calendar'} onClick={() => setActiveView('calendar')} />
             <SidebarItem icon={Settings} label="Settings" active={activeView === 'settings'} onClick={() => setActiveView('settings')} />
-            <SidebarItem icon={Heart} label="Support Tips" active={activeView === 'support'} onClick={() => setActiveView('support')} />
+            <SidebarItem icon={Heart} label="Support Us" active={activeView === 'support'} onClick={() => setActiveView('support')} />
           </nav>
           <div className="p-6">
              <div className="p-6 bg-slate-900 rounded-[2rem] text-white space-y-3 relative overflow-hidden group">
                <div className="absolute inset-0 bg-emerald-500 opacity-0 group-hover:opacity-10 transition-opacity" />
-               <Heart className="text-emerald-400" />
+               <Heart className="text-emerald-400" size={16} />
                <p className="text-sm font-bold">Fuel the Sprout</p>
-               <p className="text-xs text-slate-400 leading-relaxed">Like the app? Consider a small tip to support our mission.</p>
+               <p className="text-xs text-slate-400 leading-relaxed">Consider a tip to support our mission.</p>
                <button onClick={() => setActiveView('support')} className="text-xs font-bold text-emerald-400 flex items-center hover:underline">Support us <ArrowRight size={12} className="ml-1" /></button>
              </div>
           </div>
@@ -250,7 +281,7 @@ export default function App() {
 
       {/* Main Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-20 glass-effect sticky top-0 z-30 flex items-center justify-between px-10 border-b border-slate-100">
+        <header className="h-20 glass-effect sticky top-0 z-30 flex items-center justify-between px-10 border-b border-slate-100 shrink-0">
            <div className="flex items-center space-x-4">
              <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500"><Menu/></button>
              <h2 className="text-xl font-bold text-slate-800">{activeView.charAt(0).toUpperCase() + activeView.slice(1)}</h2>
@@ -258,7 +289,7 @@ export default function App() {
            <div className="flex items-center space-x-6">
              <div className="relative hidden md:block">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                <input type="text" placeholder="Search systems or logs..." className="pl-12 pr-6 py-2.5 bg-slate-100 rounded-2xl text-xs font-semibold outline-none w-72 focus:ring-4 focus:ring-emerald-500/5 transition-all" />
+                <input type="text" placeholder="Search logs..." className="pl-12 pr-6 py-2.5 bg-slate-100 rounded-2xl text-xs font-semibold outline-none w-72 focus:ring-4 focus:ring-emerald-500/5 transition-all" />
              </div>
              <div onClick={() => setActiveView('settings')} className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all">
                 <img src="https://picsum.photos/seed/user/100" alt="User" />
@@ -270,10 +301,11 @@ export default function App() {
           {activeView === 'dashboard' && <DashboardView setups={setups} plants={plants} inventory={inventory} tasks={tasks} setTasks={setTasks} dailyTip={dailyTip} setActiveView={setActiveView} />}
           {activeView === 'setups' && <SetupsView setups={setups} deleteSetup={deleteSetup} setSelectedItem={setSelectedItem} setModalType={setModalType} setIsModalOpen={setIsModalOpen} setActiveView={setActiveView} />}
           {activeView === 'plants' && <PlantsView plants={plants} setups={setups} deletePlant={deletePlant} setSelectedItem={setSelectedItem} setModalType={setModalType} setIsModalOpen={setIsModalOpen} />}
+          {activeView === 'guide' && <GuideView />}
           {activeView === 'troubleshoot' && <TroubleshootView />}
           {activeView === 'inventory' && <InventoryView inventory={inventory} deleteEquipment={deleteEquipment} deleteIngredient={deleteIngredient} setSelectedItem={setSelectedItem} setModalType={setModalType} setIsModalOpen={setIsModalOpen} />}
           {activeView === 'calendar' && <CalendarView tasks={tasks} setTasks={setTasks} addTask={addTask} />}
-          {activeView === 'settings' && <SettingsView handleExport={handleExport} handleImport={handleImport} fileInputRef={fileInputRef} paypalId={paypalId} setPaypalId={setPaypalId} />}
+          {activeView === 'settings' && <SettingsView handleExport={handleExport} handleImport={handleImport} fileInputRef={fileInputRef} paypalId={paypalId} setPaypalId={setPaypalId} seedAppData={seedAppData} />}
           {activeView === 'support' && <SupportView paypalId={paypalId} setActiveView={setActiveView} />}
         </div>
       </main>
@@ -411,7 +443,7 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
     }`}
   >
     <Icon size={22} className={active ? "scale-110" : ""} />
-    <span>{label}</span>
+    <span className="truncate">{label}</span>
   </button>
 );
 
@@ -436,43 +468,27 @@ const LandingPage = ({ onEnterApp, onGoToSupport }: any) => (
 
     <section className="relative pt-48 pb-32 px-8 overflow-hidden">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
-        <div className="lg:w-1/2 space-y-8">
-          <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-widest">
+        <div className="lg:w-1/2 space-y-8 text-center lg:text-left">
+          <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-widest mx-auto lg:mx-0">
             <Zap size={14} /> <span>The ultimate grower's toolkit</span>
           </div>
-          <h1 className="text-6xl md:text-7xl font-black text-slate-900 leading-[1.1]">
-            Manage your <span className="text-emerald-600">Growth</span> with Precision.
+          <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.1]">
+            Grow your first <span className="text-emerald-600">Harvest</span> today.
           </h1>
-          <p className="text-xl text-slate-500 leading-relaxed max-w-xl">
-            From aquaponics to hydroponics, track every ingredient, equipment, and plant health with our AI-powered indoor farming platform.
+          <p className="text-xl text-slate-500 leading-relaxed max-w-xl mx-auto lg:mx-0">
+            Smart management for hydroponics and aquaponics. Track setups, analyze plant health with AI, and learn the science of indoor farming.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Button onClick={onEnterApp} className="px-12 py-5 text-lg">Start Tracking Now</Button>
-            <Button onClick={onGoToSupport} variant="outline" className="px-12 py-5 text-lg">Support Development</Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <Button onClick={onEnterApp} className="px-12 py-5 text-lg">Start Growing</Button>
+            <Button onClick={onGoToSupport} variant="outline" className="px-12 py-5 text-lg">Support Us</Button>
           </div>
         </div>
         <div className="lg:w-1/2 relative">
            <div className="rounded-[3rem] overflow-hidden shadow-2xl border-[12px] border-white rotate-2 shadow-emerald-200/50">
              <img src="https://images.unsplash.com/photo-1558449028-b53a39d100fc?auto=format&fit=crop&q=80&w=800" className="w-full h-auto" />
            </div>
-           <div className="absolute -bottom-10 -left-10 bg-white p-8 rounded-3xl shadow-2xl border border-slate-100 flex items-center space-x-4 -rotate-3">
-              <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white"><Stethoscope size={24}/></div>
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">AI Diagnosis</p>
-                <p className="text-lg font-bold text-slate-800 tracking-tight">Healthy Harvests</p>
-              </div>
-           </div>
         </div>
       </div>
-    </section>
-
-    <section className="py-20 px-8 bg-slate-900 text-white text-center">
-       <div className="max-w-4xl mx-auto space-y-8">
-          <Heart className="mx-auto text-red-400 animate-pulse" size={48} />
-          <h2 className="text-3xl font-bold">Love using HydroGrow Pro?</h2>
-          <p className="text-slate-400 text-lg">We are an independent team dedicated to making indoor growing accessible for everyone. Your support helps us keep the AI running and the servers humming.</p>
-          <Button onClick={onGoToSupport} variant="accent" className="mx-auto">Fuel the Project <Gift size={18} /></Button>
-       </div>
     </section>
   </div>
 );
@@ -482,23 +498,42 @@ const DashboardView = ({ setups, plants, inventory, tasks, setTasks, dailyTip, s
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {[
         { label: "Systems", val: setups.length, icon: Layers, color: "emerald" },
-        { label: "Active Plants", val: plants.filter((p: any) => p.status !== 'Harvested').length, icon: Sprout, color: "sky" },
-        { label: "Inventory Items", val: inventory.equipment.length + inventory.ingredients.length, icon: FlaskConical, color: "indigo" },
-        { label: "Pending Tasks", val: tasks.filter((t: any) => !t.completed).length, icon: Calendar, color: "amber" }
+        { label: "Plants", val: plants.length, icon: Sprout, color: "sky" },
+        { label: "Inventory", val: inventory.equipment.length + inventory.ingredients.length, icon: FlaskConical, color: "indigo" },
+        { label: "Tasks", val: tasks.filter((t: any) => !t.completed).length, icon: Calendar, color: "amber" }
       ].map((s, i) => (
-        <div key={i} className={`bg-${s.color}-500 p-8 rounded-[2rem] text-white shadow-xl shadow-${s.color}-100 relative overflow-hidden group`}>
+        <div key={i} className={`bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group`}>
           <div className="relative z-10">
-            <p className="text-white/70 text-sm font-bold uppercase tracking-widest">{s.label}</p>
-            <h4 className="text-4xl font-black mt-1">{s.val}</h4>
+            <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">{s.label}</p>
+            <h4 className="text-4xl font-black mt-1 text-slate-800">{s.val}</h4>
           </div>
-          <s.icon className="absolute top-4 right-4 text-white/20 group-hover:scale-125 transition-transform" size={60} />
+          <s.icon className={`absolute top-4 right-4 text-${s.color}-500/10 group-hover:scale-125 transition-transform`} size={80} />
         </div>
       ))}
     </div>
 
+    {/* Empty State Roadmap for Beginners */}
+    {setups.length === 0 && (
+      <Card title="Quick Start Roadmap" className="bg-emerald-50 border-emerald-100">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           {[
+             { title: "1. Define System", desc: "Choose a Kratky or DWC system to start simple.", icon: Layers, view: 'setups' },
+             { title: "2. Log Seeds", desc: "Tell us what you're planting to track progress.", icon: Sprout, view: 'plants' },
+             { title: "3. Check Wiki", desc: "Learn the basics of pH and Light cycles.", icon: BookOpen, view: 'guide' }
+           ].map((step, i) => (
+             <div key={i} className="p-6 bg-white rounded-2xl shadow-sm border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all" onClick={() => setActiveView(step.view)}>
+               <step.icon className="text-emerald-600 mb-4" />
+               <h4 className="font-bold text-slate-800">{step.title}</h4>
+               <p className="text-xs text-slate-500 leading-relaxed mt-1">{step.desc}</p>
+             </div>
+           ))}
+         </div>
+      </Card>
+    )}
+
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2">
-        <Card title="Upcoming Reminders" action={<button onClick={() => setActiveView('calendar')} className="text-emerald-600 font-bold hover:underline">Full Calendar</button>}>
+        <Card title="Upcoming Tasks" action={<button onClick={() => setActiveView('calendar')} className="text-emerald-600 font-bold hover:underline">View All</button>}>
           <div className="space-y-4">
             {tasks.filter((t: any) => !t.completed).length === 0 ? (
               <div className="text-center py-16 text-slate-300">
@@ -513,7 +548,6 @@ const DashboardView = ({ setups, plants, inventory, tasks, setTasks, dailyTip, s
                     <p className="font-bold text-slate-800">{task.title}</p>
                     <p className="text-xs text-slate-400 font-medium">{new Date(task.date).toLocaleDateString()}</p>
                   </div>
-                  <span className="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black uppercase rounded-lg">{task.priority}</span>
                 </div>
               ))
             )}
@@ -531,13 +565,63 @@ const DashboardView = ({ setups, plants, inventory, tasks, setTasks, dailyTip, s
                  <p className="text-lg font-medium italic leading-relaxed">"{dailyTip}"</p>
                </div>
              </div>
-             <Button onClick={() => setActiveView('troubleshoot')} variant="secondary" className="w-full bg-white text-emerald-900 hover:bg-emerald-50">Troubleshoot Symptoms</Button>
+             <Button onClick={() => setActiveView('guide')} variant="secondary" className="w-full bg-white text-emerald-900 hover:bg-emerald-50">Open Guide Wiki</Button>
            </div>
         </Card>
       </div>
     </div>
   </div>
 );
+
+const GuideView = () => {
+  const [topic, setTopic] = useState('');
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const topics = ["pH Balance", "EC and PPM", "Light Cycles", "Root Rot", "Nutrient Deficiencies", "Aquaponic Cycling"];
+
+  const fetchGuide = async (t: string) => {
+    setLoading(true);
+    setTopic(t);
+    const res = await getGrowGuide(t);
+    setContent(res);
+    setLoading(false);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="text-center space-y-4">
+        <h2 className="text-4xl font-black text-slate-800">Grower's Wiki</h2>
+        <p className="text-slate-500">Instant AI-generated guides for complex hydroponic concepts.</p>
+      </div>
+      <div className="flex flex-wrap gap-3 justify-center">
+        {topics.map(t => (
+          <button key={t} onClick={() => fetchGuide(t)} className={`px-6 py-3 rounded-full font-bold transition-all ${topic === t ? 'bg-emerald-600 text-white shadow-lg' : 'bg-white text-slate-600 hover:bg-emerald-50'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <Card className="min-h-[400px]">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-full py-32 space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent" />
+            <p className="font-bold text-slate-400">Consulting Botanist AI...</p>
+          </div>
+        ) : content ? (
+          <div className="prose prose-emerald max-w-none p-4">
+            <h3 className="text-2xl font-bold mb-4">{topic}</h3>
+            <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">{content}</div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full py-32 text-slate-300 opacity-20">
+            <BookOpen size={100} />
+            <p className="text-xl font-black italic">Select a topic to learn more</p>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
 
 const SetupsView = ({ setups, deleteSetup, setSelectedItem, setModalType, setIsModalOpen, setActiveView }: any) => (
   <div className="space-y-8 animate-in fade-in duration-500">
@@ -561,13 +645,8 @@ const SetupsView = ({ setups, deleteSetup, setSelectedItem, setModalType, setIsM
             <div><p className="text-slate-400 font-bold uppercase text-[10px]">Reservoir</p><p className="font-bold text-slate-700">{setup.reservoirSize}</p></div>
             <div><p className="text-slate-400 font-bold uppercase text-[10px]">Location</p><p className="font-bold text-slate-700">{setup.location}</p></div>
           </div>
-          {setup.notes && (
-            <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-500 leading-relaxed italic">
-              "{setup.notes}"
-            </div>
-          )}
           <Button variant="secondary" className="w-full" onClick={() => setActiveView('plants')}>
-            <span>Manage System Plants</span> <ChevronRight size={16} />
+            Manage Plants <ChevronRight size={16} />
           </Button>
         </div>
       ))}
@@ -585,7 +664,7 @@ const PlantsView = ({ plants, setups, deletePlant, setSelectedItem, setModalType
     </div>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
       {plants.map((plant: any) => (
-        <div key={plant.id} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-2xl transition-all group flex flex-col">
+        <div key={plant.id} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-2xl transition-all group">
           <div className="h-48 bg-slate-100 relative">
              <img src={`https://images.unsplash.com/photo-1592324543781-9f9392e21e8d?auto=format&fit=crop&q=80&w=400`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={plant.name} />
              <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -594,15 +673,14 @@ const PlantsView = ({ plants, setups, deletePlant, setSelectedItem, setModalType
              </div>
              <div className="absolute bottom-4 left-4"><span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-xl ${plant.status === 'Healthy' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{plant.status}</span></div>
           </div>
-          <div className="p-6 flex-1 flex flex-col space-y-4">
+          <div className="p-6 space-y-4">
             <div>
               <h3 className="text-xl font-bold text-slate-800">{plant.name}</h3>
               <p className="text-xs font-black text-emerald-600 uppercase tracking-widest">{plant.variety}</p>
             </div>
-            {plant.notes && <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-xs text-slate-600 italic leading-relaxed">"{plant.notes}"</div>}
-            <div className="pt-4 mt-auto border-t border-slate-50 flex items-center justify-between text-[11px] font-bold text-slate-400">
-              <span className="flex items-center space-x-1"><Calendar size={14}/> <span>Planted {new Date(plant.plantedDate).toLocaleDateString()}</span></span>
-              <span className="flex items-center space-x-1"><Layers size={14}/> <span>{setups.find((s: any) => s.id === plant.setupId)?.name || 'Standalone'}</span></span>
+            <div className="pt-4 border-t border-slate-50 flex items-center justify-between text-[11px] font-bold text-slate-400">
+              <span className="flex items-center space-x-1"><Calendar size={14}/> <span>{new Date(plant.plantedDate).toLocaleDateString()}</span></span>
+              <span className="flex items-center space-x-1"><Layers size={14}/> <span>{setups.find((s: any) => s.id === plant.setupId)?.name || 'Unassigned'}</span></span>
             </div>
           </div>
         </div>
@@ -633,7 +711,7 @@ const TroubleshootView = () => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <Card title="Describe Symptom">
-          <textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="e.g. Yellow dots on lower leaves, stems feel mushy..." className="w-full h-48 p-6 rounded-3xl border border-slate-100 bg-slate-50 outline-none focus:ring-4 focus:ring-emerald-500/10 mb-6 resize-none" />
+          <textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="Describe what you see..." className="w-full h-48 p-6 rounded-3xl border border-slate-100 bg-slate-50 outline-none focus:ring-4 focus:ring-emerald-500/10 mb-6 resize-none" />
           <div className="relative border-4 border-dashed border-slate-100 rounded-3xl p-10 flex flex-col items-center justify-center hover:border-emerald-200 transition-colors mb-6 group cursor-pointer">
             {image ? (
               <div className="relative w-full h-full">
@@ -655,7 +733,7 @@ const TroubleshootView = () => {
             {loading ? <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent" /> : "Analyze Health Issue"}
           </Button>
         </Card>
-        <Card title="Diagnosis & Recommendations">
+        <Card title="Diagnosis">
           <div className="prose prose-emerald max-w-none">
             {diagnosis ? (
               <div className="text-slate-700 leading-relaxed whitespace-pre-wrap p-8 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
@@ -696,10 +774,7 @@ const InventoryView = ({ inventory, deleteEquipment, deleteIngredient, setSelect
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.category} • {item.status}</p>
                   </div>
                </div>
-               <div className="flex items-center space-x-6">
-                  {item.notes && <div title={item.notes}><FileText className="text-slate-200" size={16} /></div>}
-                  <button onClick={() => deleteEquipment(item.id)} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
-               </div>
+               <button onClick={() => deleteEquipment(item.id)} className="text-slate-200 hover:text-red-500 transition-opacity"><Trash2 size={18}/></button>
              </div>
            ))}
          </div>
@@ -718,7 +793,7 @@ const InventoryView = ({ inventory, deleteEquipment, deleteIngredient, setSelect
                </div>
                <div className="flex items-center space-x-6">
                   <div className="text-right"><p className="text-xl font-black text-slate-800 leading-none">{ing.quantity}</p><p className="text-[10px] font-black text-slate-400 uppercase">{ing.unit}</p></div>
-                  <button onClick={() => deleteIngredient(ing.id)} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
+                  <button onClick={() => deleteIngredient(ing.id)} className="text-slate-200 hover:text-red-500 transition-opacity"><Trash2 size={18}/></button>
                </div>
              </div>
            ))}
@@ -739,100 +814,88 @@ const CalendarView = ({ tasks, setTasks, addTask }: any) => (
            f.reset();
          }}>
            <input name="date" required type="date" className="flex-1 p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/10" />
-           <input name="task" required placeholder="Log a reminder (e.g. Nutrient Flush)..." className="flex-[2] p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/10" />
-           <Button type="submit">Log Task</Button>
+           <input name="task" required placeholder="Log a reminder..." className="flex-[2] p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/10" />
+           <Button type="submit">Add Task</Button>
          </form>
          <div className="space-y-4">
-           <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Pending Operations</h4>
-           <div className="space-y-3">
-             {tasks.filter((t: any) => !t.completed).length === 0 ? <p className="text-center py-20 text-slate-300 italic">Pipeline clear.</p> : tasks.filter((t: any) => !t.completed).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((t: any) => (
-               <div key={t.id} className="p-6 bg-white border border-slate-100 rounded-3xl flex items-center justify-between hover:shadow-xl transition-all">
-                 <div className="flex items-center space-x-4">
-                   <input type="checkbox" className="w-6 h-6 accent-emerald-500" onChange={() => setTasks(tasks.map((x: any) => x.id === t.id ? {...x, completed: true} : x))} />
-                   <div>
-                      <p className="font-bold text-slate-800">{t.title}</p>
-                      <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString()}</p>
-                   </div>
+           {tasks.filter((t: any) => !t.completed).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((t: any) => (
+             <div key={t.id} className="p-6 bg-white border border-slate-100 rounded-3xl flex items-center justify-between hover:shadow-xl transition-all">
+               <div className="flex items-center space-x-4">
+                 <input type="checkbox" className="w-6 h-6 accent-emerald-500" onChange={() => setTasks(tasks.map((x: any) => x.id === t.id ? {...x, completed: true} : x))} />
+                 <div>
+                    <p className="font-bold text-slate-800">{t.title}</p>
+                    <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString()}</p>
                  </div>
-                 <button onClick={() => setTasks(tasks.filter((x: any) => x.id !== t.id))} className="text-slate-200 hover:text-red-500"><Trash2 size={20}/></button>
                </div>
-             ))}
-           </div>
+               <button onClick={() => setTasks(tasks.filter((x: any) => x.id !== t.id))} className="text-slate-200 hover:text-red-500"><Trash2 size={20}/></button>
+             </div>
+           ))}
          </div>
        </div>
     </Card>
   </div>
 );
 
-const SettingsView = ({ handleExport, handleImport, fileInputRef, paypalId, setPaypalId }: any) => (
+const SettingsView = ({ handleExport, handleImport, fileInputRef, paypalId, setPaypalId, seedAppData }: any) => (
   <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
     <div className="text-center space-y-4">
-      <h2 className="text-4xl font-black text-slate-800">System Settings</h2>
-      <p className="text-slate-500">Manage your data and platform preferences.</p>
+      <h2 className="text-4xl font-black text-slate-800">Settings</h2>
+      <p className="text-slate-500">Platform preferences and data management.</p>
     </div>
 
-    <Card title="Monetization (Tips)" className="rounded-[3rem] p-10 shadow-2xl overflow-hidden relative border-amber-100 bg-amber-50/30">
-       <div className="absolute top-0 right-0 p-8 opacity-10"><CreditCard size={120} className="text-amber-500" /></div>
-       <div className="relative z-10 space-y-6">
-         <div className="space-y-2">
-           <h4 className="text-xl font-bold text-slate-800">Developer PayPal ID</h4>
-           <p className="text-sm text-slate-500 leading-relaxed">
-             Input your PayPal Email or Merchant ID here. This will enable the "Support Tips" page for your users, and all donations will go directly to this account.
-           </p>
+    {/* New Developer Seed Section */}
+    <Card title="Developer Experience (DX)" className="bg-indigo-50 border-indigo-100">
+       <div className="flex items-center justify-between">
+         <div>
+           <h4 className="font-bold text-indigo-900">Seed Demo Data</h4>
+           <p className="text-xs text-indigo-600">Instantly populate the app with a demo garden for testing.</p>
          </div>
+         <Button variant="dark" onClick={seedAppData}>Populate Demo Garden</Button>
+       </div>
+    </Card>
+
+    <Card className="bg-emerald-50 border-emerald-100">
+      <div className="flex items-start space-x-4">
+        <div className="p-3 bg-white rounded-2xl shadow-sm text-emerald-600 shrink-0">
+          <Lock size={24} />
+        </div>
+        <div>
+          <h4 className="font-bold text-slate-800 mb-1">Privacy & Storage Notice</h4>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            HydroGrow Pro is a serverless application. Your data is stored exclusively in your own browser. To use this data on a different device, use the Export/Restore tools below.
+          </p>
+        </div>
+      </div>
+    </Card>
+
+    <Card title="Developer PayPal ID" className="border-amber-100 bg-amber-50/30">
+       <div className="space-y-6">
+         <p className="text-sm text-slate-500">Input your PayPal ID to enable the Support Us page for your users.</p>
          <div className="flex space-x-3">
            <input 
             type="text" 
-            placeholder="e.g. yourname@email.com or PayPal ID" 
+            placeholder="PayPal Email or ID" 
             value={paypalId}
             onChange={(e) => setPaypalId(e.target.value)}
-            className="flex-1 p-4 bg-white rounded-2xl border border-amber-200 outline-none focus:ring-4 focus:ring-amber-500/10 font-medium"
+            className="flex-1 p-4 bg-white rounded-2xl border border-amber-200 outline-none"
            />
-           <Button variant="accent" onClick={() => alert("Settings Updated!")}>Save ID</Button>
-         </div>
-         <div className="flex items-center space-x-2 text-[10px] font-bold text-amber-600 uppercase tracking-widest">
-           <ShieldCheck size={14}/> <span>Stored locally in your browser</span>
+           <Button variant="accent" onClick={() => alert("Saved!")}>Save ID</Button>
          </div>
        </div>
     </Card>
 
-    <Card title="Data Management" className="rounded-[3rem] p-10 shadow-2xl overflow-hidden relative">
-      <div className="absolute top-0 right-0 p-8 opacity-5"><Database size={160} /></div>
-      <div className="relative z-10 space-y-8">
-        <div className="flex items-start space-x-6">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
-            <ShieldCheck size={32} />
-          </div>
-          <div className="space-y-2">
-            <h4 className="text-xl font-bold text-slate-800">Backup & Security</h4>
-            <p className="text-slate-500 leading-relaxed">
-              HydroGrow Pro stores your growth logs locally in your browser. To ensure you never lose your data, we recommend exporting a periodic backup file.
-            </p>
-          </div>
+    <Card title="Data Management">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 text-center space-y-4">
+          <Download className="mx-auto text-emerald-600" />
+          <h5 className="font-bold">Export Backup</h5>
+          <Button onClick={handleExport} className="w-full">Download JSON</Button>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6">
-          <div className="space-y-4 p-8 bg-slate-50 rounded-[2rem] border border-slate-100 text-center">
-            <Download className="mx-auto text-emerald-600" size={40} />
-            <h5 className="font-bold text-slate-800">Export Records</h5>
-            <p className="text-xs text-slate-400">Download all setups, plants, and inventory as a JSON file.</p>
-            <Button onClick={handleExport} className="w-full">Download Backup</Button>
-          </div>
-          
-          <div className="space-y-4 p-8 bg-slate-50 rounded-[2rem] border border-slate-100 text-center">
-            <Upload className="mx-auto text-indigo-600" size={40} />
-            <h5 className="font-bold text-slate-800">Restore Records</h5>
-            <p className="text-xs text-slate-400">Import a previously saved HydroGrow backup file.</p>
-            <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".json" />
-            <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="w-full">Upload File</Button>
-          </div>
-        </div>
-
-        <div className="p-6 bg-red-50 rounded-2xl border border-red-100 flex items-center space-x-4">
-          <AlertTriangle className="text-red-500 shrink-0" />
-          <p className="text-xs text-red-700 font-medium">
-            Warning: Importing a backup will overwrite your current local data. Make sure to export your current state first if you need it.
-          </p>
+        <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 text-center space-y-4">
+          <Upload className="mx-auto text-indigo-600" />
+          <h5 className="font-bold">Restore Backup</h5>
+          <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".json" />
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="w-full">Upload File</Button>
         </div>
       </div>
     </Card>
@@ -841,11 +904,7 @@ const SettingsView = ({ handleExport, handleImport, fileInputRef, paypalId, setP
 
 const SupportView = ({ paypalId, setActiveView }: any) => {
   const handleDonate = (amount: number) => {
-    if (!paypalId) {
-      alert("No PayPal ID configured! Go to Settings to set your PayPal address.");
-      return;
-    }
-    const baseUrl = "https://www.paypal.com/cgi-bin/webscr";
+    if (!paypalId) return alert("Configure PayPal ID in Settings first.");
     const params = new URLSearchParams({
       cmd: "_donations",
       business: paypalId,
@@ -853,72 +912,31 @@ const SupportView = ({ paypalId, setActiveView }: any) => {
       currency_code: "USD",
       amount: amount.toString()
     });
-    window.open(`${baseUrl}?${params.toString()}`, '_blank');
+    window.open(`https://www.paypal.com/cgi-bin/webscr?${params.toString()}`, '_blank');
   };
-
-  const tiers = [
-    { name: "Sprout", icon: Sprout, amount: 5, desc: "A little water for the soil. Helps cover our domain and base storage costs.", color: "emerald" },
-    { name: "Bloom", icon: Heart, amount: 15, desc: "Nutrients for growth. Supports the AI diagnostic API tokens we use for your plants.", color: "red" },
-    { name: "Harvest", icon: Star, amount: 50, desc: "A full yield. Directly funds new feature development and long-term maintenance.", color: "amber" }
-  ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500 pb-20">
-      {!paypalId && (
-        <div className="p-8 bg-amber-50 border-2 border-dashed border-amber-200 rounded-[2rem] flex items-center justify-between">
-           <div className="flex items-center space-x-4">
-             <AlertTriangle className="text-amber-500" />
-             <div>
-               <p className="font-bold text-slate-800">Donations Not Setup</p>
-               <p className="text-sm text-slate-500">You haven't configured your PayPal ID in Settings yet. Click the button to set it up.</p>
-             </div>
-           </div>
-           <Button variant="secondary" onClick={() => setActiveView('settings')}>Go to Settings</Button>
-        </div>
-      )}
-
       <div className="text-center space-y-4 max-w-2xl mx-auto">
-        <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-tight">Support <span className="text-emerald-600">HydroGrow Pro</span></h2>
-        <p className="text-slate-500 text-lg">We are an independent project built by gardening enthusiasts. If this tool has helped your harvest, consider supporting us.</p>
+        <h2 className="text-5xl font-black text-slate-800">Support <span className="text-emerald-600">HydroGrow</span></h2>
+        <p className="text-slate-500 text-lg">Help us keep the AI consultant running and the project open source.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
-         {tiers.map((tier, i) => (
-           <Card key={i} className="p-10 hover:shadow-2xl transition-all border-2 border-transparent hover:border-emerald-100 group">
-             <div className={`w-20 h-20 rounded-[2rem] bg-${tier.color}-100 text-${tier.color}-600 flex items-center justify-center mb-8 shadow-sm group-hover:scale-110 transition-transform`}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+         {[
+           { name: "Sprout", amount: 5, icon: Sprout, color: "emerald" },
+           { name: "Bloom", amount: 15, icon: Heart, color: "red" },
+           { name: "Harvest", amount: 50, icon: Star, color: "amber" }
+         ].map((tier, i) => (
+           <Card key={i} className="p-10 text-center">
+             <div className={`w-20 h-20 rounded-[2rem] bg-${tier.color}-100 text-${tier.color}-600 flex items-center justify-center mx-auto mb-8 shadow-sm`}>
                <tier.icon size={40} />
              </div>
-             <h3 className="text-3xl font-black text-slate-800 mb-2">{tier.name}</h3>
-             <p className="text-4xl font-black text-slate-900 mb-6">${tier.amount}<span className="text-sm font-bold text-slate-300">/one-time</span></p>
-             <p className="text-slate-500 leading-relaxed mb-10 flex-1">{tier.desc}</p>
-             <Button onClick={() => handleDonate(tier.amount)} className={`w-full bg-${tier.color === 'red' ? 'red-500' : tier.color === 'amber' ? 'amber-500' : 'emerald-600'}`}>
-               Donate via PayPal <ExternalLink size={18} />
-             </Button>
+             <h3 className="text-2xl font-black text-slate-800 mb-2">{tier.name}</h3>
+             <p className="text-4xl font-black text-slate-900 mb-8">${tier.amount}</p>
+             <Button onClick={() => handleDonate(tier.amount)} className="w-full">Donate</Button>
            </Card>
          ))}
-      </div>
-
-      <div className="flex flex-col lg:flex-row items-center justify-between gap-10 p-12 bg-slate-900 rounded-[3rem] text-white overflow-hidden relative">
-         <div className="absolute top-0 left-0 p-8 opacity-5"><Coffee size={200} /></div>
-         <div className="space-y-4 relative z-10 max-w-xl">
-           <div className="inline-flex items-center space-x-2 px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-             <Coffee size={12} /> <span>Simple Appreciation</span>
-           </div>
-           <h3 className="text-3xl font-bold">Buy us a coffee?</h3>
-           <p className="text-slate-400 text-lg">Not ready for a full tier? Even a small contribution helps us power through those late-night coding sessions.</p>
-         </div>
-         <div className="flex flex-wrap gap-3 relative z-10">
-            {[2, 5, 10].map(amt => (
-              <button 
-                key={amt} 
-                onClick={() => handleDonate(amt)}
-                className="px-8 py-4 bg-white/10 hover:bg-emerald-500 transition-colors rounded-2xl font-bold border border-white/10 hover:border-emerald-400"
-              >
-                ${amt}
-              </button>
-            ))}
-            <button className="px-8 py-4 bg-white rounded-2xl text-slate-900 font-bold hover:bg-emerald-50 transition-colors" onClick={() => handleDonate(1)}>Custom</button>
-         </div>
       </div>
     </div>
   );
