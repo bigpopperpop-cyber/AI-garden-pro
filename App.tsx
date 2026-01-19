@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -112,12 +113,15 @@ export default function App() {
     ingredients: []
   });
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [paypalId, setPaypalId] = useState<string>('');
 
-  // UI State
+  // UI / Modal State
+  // Fix: Added missing state variables for handling modal visibility and item selection
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<any>(null);
+  const [modalType, setModalType] = useState<'setup' | 'plant' | 'equip' | 'ingred' | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  
+  // Update: Initialize with your PayPal email
+  const [paypalId, setPaypalId] = useState<string>('gizmooo@yahoo.com');
 
   // Scroll fix for navigation
   useEffect(() => {
