@@ -33,12 +33,14 @@ import {
   History,
   Clock,
   DollarSign,
-  PiggyBank
+  PiggyBank,
+  Sparkles,
+  Timer
 } from 'lucide-react';
 import { 
   ViewState, Setup, Plant, Equipment, Ingredient, Task, HarvestRecord 
 } from './types.ts';
-import { troubleshootPlant, getDailyTip, getGrowGuide } from './services/geminiService.ts';
+import { troubleshootPlant, getDailyTip, getGrowGuide, getPlantProjections } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
@@ -104,8 +106,6 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
   </button>
 );
 
-// --- Custom Data Viz Components ---
-
 const SimpleBarChart = ({ data }: { data: { label: string, value: number }[] }) => {
   const max = Math.max(...data.map(d => d.value), 1);
   return (
@@ -120,6 +120,43 @@ const SimpleBarChart = ({ data }: { data: { label: string, value: number }[] }) 
             style={{ height: `${(d.value / max) * 100}%` }}
           />
           <span className="text-[9px] font-bold text-slate-400 mt-2 rotate-45 origin-left whitespace-nowrap">{d.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// --- Lifecycle Timeline ---
+
+const PlantLifecycleTimeline = ({ plant }: { plant: Plant }) => {
+  const steps = [
+    { label: 'Planted', date: plant.plantedDate, icon: Sprout, actual: true },
+    { label: 'Germinated', date: plant.germinatedDate || plant.projectedGerminationDate, icon: Zap, actual: !!plant.germinatedDate, projected: !plant.germinatedDate && !!plant.projectedGerminationDate },
+    { label: 'Flowering', date: plant.floweredDate || plant.projectedFloweringDate, icon: Star, actual: !!plant.floweredDate, projected: !plant.floweredDate && !!plant.projectedFloweringDate },
+    { label: 'Harvest Ready', date: plant.projectedHarvestDate, icon: Scale, actual: false, projected: !!plant.projectedHarvestDate },
+  ].filter(s => s.date).sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+
+  return (
+    <div className="space-y-4 relative py-2">
+      <div className="absolute left-[19px] top-6 bottom-6 w-0.5 bg-slate-100" />
+      {steps.map((step, i) => (
+        <div key={i} className="flex items-center space-x-4 relative z-10">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${
+            step.actual 
+              ? 'bg-emerald-600 text-white' 
+              : step.projected 
+                ? 'bg-white border-2 border-dashed border-emerald-200 text-emerald-400'
+                : 'bg-white border-2 border-slate-100 text-slate-300'
+          }`}>
+            <step.icon size={16} />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <p className="text-xs font-black text-slate-800">{step.label}</p>
+              {step.projected && <span className="text-[8px] bg-emerald-50 text-emerald-600 px-1 rounded font-black uppercase">Projected</span>}
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold">{new Date(step.date!).toLocaleDateString()}</p>
+          </div>
         </div>
       ))}
     </div>
@@ -144,18 +181,17 @@ const LandingPage = ({ onEnterApp, onGoToSupport }: any) => (
         Launch App <ArrowRight size={16} className="ml-2" />
       </Button>
     </nav>
-
     <section className="relative pt-48 pb-32 px-8 overflow-hidden">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
         <div className="lg:w-1/2 space-y-8 text-center lg:text-left">
           <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-widest mx-auto lg:mx-0">
-            <Zap size={14} /> <span>The ultimate grower's toolkit</span>
+            <Zap size={14} /> <span>Smart Greenhouse Management</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.1]">
-            Grow your first <span className="text-emerald-600">Harvest</span> today.
+            Plan. Grow. <span className="text-emerald-600">Harvest.</span>
           </h1>
           <p className="text-xl text-slate-500 leading-relaxed max-w-xl mx-auto lg:mx-0">
-            Smart management for hydroponics and aquaponics. Track setups, analyze plant health with AI, and learn the science of indoor farming.
+            Intelligent tracking for soil-less farming. Log costs, estimate harvest dates with AI, and track your yield journey from seed to table.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
             <Button onClick={onEnterApp} className="px-12 py-5 text-lg">Start Growing</Button>
@@ -184,113 +220,57 @@ const ReportsView = ({ plants, setups, inventory }: { plants: Plant[], setups: S
     return Object.entries(data).map(([label, value]) => ({ label, value }));
   }, [plants]);
 
-  const varietyPerformance = useMemo(() => {
-    const data: { [key: string]: number } = {};
-    plants.forEach(p => {
-      const total = p.harvestRecords?.reduce((sum, h) => sum + Number(h.amount), 0) || 0;
-      data[p.name] = (data[p.name] || 0) + total;
-    });
-    return Object.entries(data).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-  }, [plants]);
-
   const totalHarvest = plants.reduce((sum, p) => sum + (p.harvestRecords?.reduce((hSum, h) => hSum + Number(h.amount), 0) || 0), 0);
-  
-  const totalInvestment = useMemo(() => {
-    const setupCost = setups.reduce((s, x) => s + (x.cost || 0), 0);
-    const plantCost = plants.reduce((s, x) => s + (x.cost || 0), 0);
-    const equipCost = inventory.equipment.reduce((s, x) => s + (x.cost || 0), 0);
-    const ingredCost = inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0);
-    return setupCost + plantCost + equipCost + ingredCost;
-  }, [setups, plants, inventory]);
+  const totalInvestment = setups.reduce((s, x) => s + (x.cost || 0), 0) + plants.reduce((s, x) => s + (x.cost || 0), 0) + inventory.equipment.reduce((s, x) => s + (x.cost || 0), 0) + inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-500 pb-20">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-emerald-600 text-white text-center p-6 border-none shadow-xl shadow-emerald-100">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="bg-emerald-600 text-white text-center p-6 border-none shadow-xl">
           <Scale size={24} className="mx-auto mb-4 text-emerald-200" />
           <p className="text-emerald-100 font-bold uppercase tracking-widest text-[10px]">Total Yield</p>
-          <h2 className="text-4xl font-black mt-1">{totalHarvest}<span className="text-lg">g</span></h2>
+          <h2 className="text-4xl font-black mt-1">{totalHarvest}g</h2>
         </Card>
         <Card className="bg-slate-900 text-white text-center p-6 border-none shadow-xl">
           <DollarSign size={24} className="mx-auto mb-4 text-emerald-400" />
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Investment</p>
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Total Spent</p>
           <h2 className="text-4xl font-black mt-1">${totalInvestment.toFixed(2)}</h2>
         </Card>
-        <Card className="text-center p-6 bg-white border-slate-100">
-          <PiggyBank size={24} className="mx-auto mb-4 text-emerald-500" />
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Cost / Gram</p>
-          <h2 className="text-4xl font-black mt-1 text-slate-800">
-            ${totalHarvest > 0 ? (totalInvestment / totalHarvest).toFixed(2) : '0.00'}
-          </h2>
-        </Card>
-        <Card className="text-center p-6 bg-white border-slate-100">
-          <TrendingUp size={24} className="mx-auto mb-4 text-emerald-500" />
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Efficiency Index</p>
-          <h2 className="text-4xl font-black mt-1 text-slate-800">
-            {totalInvestment > 0 ? (totalHarvest / totalInvestment).toFixed(1) : '0'}<span className="text-sm">g/$</span>
-          </h2>
+        <Card title="Upcoming Projections" className="lg:col-span-2">
+           <div className="space-y-2">
+             {plants.filter(p => p.projectedHarvestDate && p.status !== 'Harvested').sort((a,b) => new Date(a.projectedHarvestDate!).getTime() - new Date(b.projectedHarvestDate!).getTime()).slice(0, 3).map(p => (
+               <div key={p.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                 <span className="font-bold text-slate-700 text-sm">{p.name}</span>
+                 <div className="flex items-center space-x-2 text-emerald-600 font-black text-xs">
+                   <Timer size={12} />
+                   <span>Harvest by {new Date(p.projectedHarvestDate!).toLocaleDateString()}</span>
+                 </div>
+               </div>
+             ))}
+             {plants.length === 0 && <p className="text-slate-300 italic text-center py-4 text-xs">No projections available.</p>}
+           </div>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card title="Harvest Trends (by Month)">
-          {harvestSummary.length > 0 ? (
-            <SimpleBarChart data={harvestSummary} />
-          ) : (
-            <div className="h-64 flex flex-col items-center justify-center text-slate-300 italic border-2 border-dashed border-slate-50 rounded-3xl">
-              <History size={48} className="mb-2 opacity-10" />
-              <p>No harvest data recorded yet</p>
-            </div>
-          )}
+        <Card title="Yield Trends">
+          {harvestSummary.length > 0 ? <SimpleBarChart data={harvestSummary} /> : <div className="h-64 flex items-center justify-center text-slate-300 italic">No data yet</div>}
         </Card>
-        <Card title="Project Financials">
+        <Card title="Project Summary">
           <div className="space-y-4">
              {setups.map(s => {
                const pCosts = plants.filter(p => p.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0);
-               const eCosts = inventory.equipment.filter(e => e.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0);
-               const total = (s.cost || 0) + pCosts + eCosts;
+               const total = (s.cost || 0) + pCosts;
                return (
                  <div key={s.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                   <div>
-                     <span className="font-black text-slate-800 block">{s.name}</span>
-                     <span className="text-[10px] text-slate-400 font-bold uppercase">System + Associated Assets</span>
-                   </div>
-                   <div className="text-right">
-                     <span className="font-black text-xl text-slate-900">${total.toFixed(2)}</span>
-                   </div>
+                   <span className="font-black text-slate-800">{s.name}</span>
+                   <span className="font-black text-xl text-emerald-600">${total.toFixed(2)}</span>
                  </div>
                );
              })}
-             {setups.length === 0 && <div className="py-20 text-center text-slate-300 italic">No systems to track.</div>}
           </div>
         </Card>
       </div>
-    </div>
-  );
-};
-
-const PlantLifecycleTimeline = ({ plant }: { plant: Plant }) => {
-  const steps = [
-    { label: 'Planted', date: plant.plantedDate, icon: Sprout, active: true },
-    { label: 'Germinated', date: plant.germinatedDate, icon: Zap, active: !!plant.germinatedDate },
-    { label: 'Flowered', date: plant.floweredDate, icon: Star, active: !!plant.floweredDate },
-    { label: 'Last Check', date: plant.lastChecked, icon: Clock, active: true },
-  ].filter(s => s.active).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  return (
-    <div className="space-y-4 relative py-2">
-      <div className="absolute left-[19px] top-6 bottom-6 w-0.5 bg-slate-100" />
-      {steps.map((step, i) => (
-        <div key={i} className="flex items-center space-x-4 relative z-10">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${i === steps.length - 1 ? 'bg-emerald-600 text-white' : 'bg-white border-2 border-slate-100 text-slate-400'}`}>
-            <step.icon size={16} />
-          </div>
-          <div>
-            <p className="text-xs font-black text-slate-800">{step.label}</p>
-            <p className="text-[10px] text-slate-400 font-bold">{new Date(step.date).toLocaleDateString()}</p>
-          </div>
-        </div>
-      ))}
     </div>
   );
 };
@@ -302,8 +282,10 @@ export default function App() {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [dailyTip, setDailyTip] = useState<string>("Loading your grower intelligence...");
+  const [isPredicting, setIsPredicting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Navigation
   const navigateTo = (view: ViewState) => {
     setActiveView(view);
     setIsSidebarOpen(false);
@@ -311,10 +293,7 @@ export default function App() {
 
   const [setups, setSetups] = useState<Setup[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
-  const [inventory, setInventory] = useState<{equipment: Equipment[], ingredients: Ingredient[]}>({
-    equipment: [],
-    ingredients: []
-  });
+  const [inventory, setInventory] = useState<{equipment: Equipment[], ingredients: Ingredient[]}>({ equipment: [], ingredients: [] });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [paypalId, setPaypalId] = useState<string>('gizmooo@yahoo.com');
 
@@ -323,22 +302,16 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [mode, activeView]);
-
-  useEffect(() => {
     const s = localStorage.getItem('hydro_setups');
     const p = localStorage.getItem('hydro_plants');
     const i = localStorage.getItem('hydro_inventory');
     const t = localStorage.getItem('hydro_tasks');
     const pay = localStorage.getItem('hydro_paypal');
-
     if (s) setSetups(JSON.parse(s));
     if (p) setPlants(JSON.parse(p));
     if (i) setInventory(JSON.parse(i));
     if (t) setTasks(JSON.parse(t));
     if (pay) setPaypalId(pay);
-
     getDailyTip().then(setDailyTip);
   }, []);
 
@@ -353,7 +326,7 @@ export default function App() {
   const addSetup = (data: any) => setSetups([...setups, { ...data, id: Date.now().toString() }]);
   const updateSetup = (id: string, data: any) => setSetups(setups.map(s => s.id === id ? { ...s, ...data } : s));
   const deleteSetup = (id: string) => {
-    if(confirm("Delete system? All linked plants will lose their system ID.")) {
+    if(confirm("Delete system?")) {
       setSetups(setups.filter(s => s.id !== id));
       setPlants(plants.map(p => p.setupId === id ? { ...p, setupId: '' } : p));
     }
@@ -385,86 +358,38 @@ export default function App() {
 
   const addTask = (title: string, date: string) => setTasks([...tasks, { id: Date.now().toString(), title, date, completed: false, priority: 'Medium' }]);
 
-  const seedAppData = () => {
-    const demoSetup: Setup = { id: 'demo-1', name: 'Kitchen Herb Station', type: 'Kratky', startDate: new Date(Date.now() - 60 * 86400000).toISOString(), reservoirSize: '10L', location: 'Kitchen Counter', notes: 'Beginner-friendly low maintenance setup.', cost: 45.00 };
-    const demoPlant: Plant = { 
-      id: 'demo-p1', 
-      setupId: 'demo-1', 
-      name: 'Sweet Basil', 
-      variety: 'Genovese', 
-      plantedDate: new Date(Date.now() - 45 * 86400000).toISOString(), 
-      germinatedDate: new Date(Date.now() - 40 * 86400000).toISOString(),
-      floweredDate: new Date(Date.now() - 15 * 86400000).toISOString(),
-      status: 'Healthy', 
-      lastChecked: new Date().toISOString(), 
-      notes: 'Growing vigorously.',
-      cost: 5.50,
-      harvestRecords: [
-        { id: 'h1', date: new Date().toISOString(), amount: 15, unit: 'g' },
-        { id: 'h2', date: new Date(Date.now() - 7 * 86400000).toISOString(), amount: 10, unit: 'g' },
-        { id: 'h3', date: new Date(Date.now() - 14 * 86400000).toISOString(), amount: 12, unit: 'g' }
-      ]
-    };
-    setSetups([demoSetup]);
-    setPlants([demoPlant]);
-    alert("Demo garden seeded with investment data!");
-    navigateTo('dashboard');
+  const handlePredict = async (form: any) => {
+    const name = form.pname.value;
+    const variety = form.pvar.value;
+    const setupId = form.pId.value;
+    const plantedDateStr = form.pdate.value;
+    if (!name) return alert("Enter plant name first!");
+
+    setIsPredicting(true);
+    const system = setups.find(s => s.id === setupId)?.type || 'Hydroponic';
+    const projections = await getPlantProjections(name, variety, system);
+    setIsPredicting(false);
+
+    if (projections) {
+      const baseDate = new Date(plantedDateStr);
+      const formatDate = (days: number) => {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + days);
+        return d.toISOString().split('T')[0];
+      };
+      form.pgerm_proj.value = formatDate(projections.daysToGerminate);
+      form.pflow_proj.value = formatDate(projections.daysToFlower);
+      form.phrv_proj.value = formatDate(projections.daysToHarvest);
+    } else {
+      alert("AI couldn't estimate dates. Try a more specific name.");
+    }
   };
 
-  const handleExport = () => {
-    const data = { setups, plants, inventory, tasks, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `hydrogrow-backup.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (json.setups) setSetups(json.setups);
-        if (json.plants) setPlants(json.plants);
-        if (json.inventory) setInventory(json.inventory);
-        if (json.tasks) setTasks(json.tasks);
-        alert("Backup imported successfully!");
-      } catch (err) {
-        alert("Failed to parse backup file.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  if (mode === 'website') {
-    return (
-      <LandingPage 
-        onEnterApp={() => {
-          setMode('platform');
-          navigateTo('dashboard');
-        }} 
-        onGoToSupport={() => { 
-          setMode('platform'); 
-          navigateTo('support'); 
-        }}
-      />
-    );
-  }
+  if (mode === 'website') return <LandingPage onEnterApp={() => { setMode('platform'); navigateTo('dashboard'); }} onGoToSupport={() => { setMode('platform'); navigateTo('support'); }} />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
+      {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-100 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div className="p-8 flex items-center justify-between">
@@ -472,7 +397,7 @@ export default function App() {
               <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xl"><Sprout size={24} /></div>
               <h1 className="text-xl font-black text-slate-800 tracking-tighter">HydroGrow</h1>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><X/></button>
+            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-xl"><X/></button>
           </div>
           <nav className="flex-1 px-4 space-y-2 py-4 overflow-y-auto">
             <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeView === 'dashboard'} onClick={() => navigateTo('dashboard')} />
@@ -492,36 +417,31 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header className="h-20 glass-effect sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 border-b border-slate-100 shrink-0">
            <div className="flex items-center space-x-4">
-             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"><Menu/></button>
-             <h2 className="text-lg md:text-xl font-bold text-slate-800 truncate">{activeView.charAt(0).toUpperCase() + activeView.slice(1)}</h2>
+             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-xl"><Menu/></button>
+             <h2 className="text-lg md:text-xl font-bold text-slate-800 truncate">{activeView.toUpperCase()}</h2>
            </div>
-           <div className="flex items-center space-x-4">
-             <div onClick={() => navigateTo('settings')} className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all">
-                <img src="https://picsum.photos/seed/user/100" alt="User" />
-             </div>
-           </div>
+           <div onClick={() => navigateTo('settings')} className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all overflow-hidden"><img src="https://picsum.photos/seed/user/100" alt="User" /></div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth">
           {activeView === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {[
                   { label: "Systems", val: setups.length, icon: Layers },
                   { label: "Plants", val: plants.length, icon: Sprout },
                   { label: "Total Yield", val: `${plants.reduce((s, x) => s + (x.harvestRecords?.reduce((hS, h) => hS + h.amount, 0) || 0), 0)}g`, icon: Scale },
-                  { label: "Total Spent", val: `$${(setups.reduce((s, x) => s + (x.cost || 0), 0) + plants.reduce((s, x) => s + (x.cost || 0), 0) + inventory.equipment.reduce((s, x) => s + (x.cost || 0), 0) + inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0)).toFixed(0)}`, icon: DollarSign }
+                  { label: "Investment", val: `$${(setups.reduce((s, x) => s + (x.cost || 0), 0) + plants.reduce((s, x) => s + (x.cost || 0), 0)).toFixed(0)}`, icon: DollarSign }
                 ].map((s, i) => (
-                  <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                  <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
                     <div className="relative z-10">
                       <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{s.label}</p>
                       <h4 className="text-4xl font-black mt-1 text-slate-800">{s.val}</h4>
                     </div>
-                    <s.icon className={`absolute top-4 right-4 text-emerald-500 opacity-5 group-hover:scale-125 transition-transform`} size={80} />
+                    <s.icon className="absolute top-4 right-4 text-emerald-500 opacity-5" size={80} />
                   </div>
                 ))}
               </div>
-              
               <Card className="bg-emerald-900 text-white border-none shadow-2xl relative overflow-hidden p-10">
                  <div className="absolute top-0 right-0 p-4 opacity-10"><Leaf size={140}/></div>
                  <div className="relative z-10 space-y-6">
@@ -532,47 +452,30 @@ export default function App() {
                        <p className="text-xl md:text-2xl font-medium italic leading-relaxed">"{dailyTip}"</p>
                      </div>
                    </div>
-                   <Button onClick={() => navigateTo('guide')} variant="secondary" className="bg-white text-emerald-900 hover:bg-emerald-50 border-none">Browse the Growth Wiki</Button>
+                   <Button onClick={() => navigateTo('guide')} variant="secondary" className="bg-white text-emerald-900">Learn to grow</Button>
                  </div>
               </Card>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                  <Card title="Upcoming Maintenance" action={<button onClick={() => navigateTo('calendar')} className="text-emerald-600 font-bold hover:underline">Full Schedule</button>}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                 <Card title="Current Task List">
                     <div className="space-y-4">
-                      {tasks.filter((t: any) => !t.completed).length === 0 ? (
-                        <div className="text-center py-16 text-slate-300 italic border-2 border-dashed border-slate-50 rounded-3xl">
-                          <Activity size={48} className="mx-auto mb-2 opacity-10" />
-                          <p>No immediate tasks found.</p>
-                        </div>
-                      ) : (
-                        tasks.filter((t: any) => !t.completed).slice(0, 5).map((task: any) => (
-                          <div key={task.id} className="flex items-center space-x-4 p-5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:shadow-md transition-all">
-                            <input type="checkbox" className="w-5 h-5 accent-emerald-500 rounded cursor-pointer" onChange={() => setTasks(tasks.map((t: any) => t.id === task.id ? {...t, completed: true} : t))} />
-                            <div className="flex-1">
-                              <p className="font-bold text-slate-800">{task.title}</p>
-                              <p className="text-xs text-slate-400 font-medium">{new Date(task.date).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                       {tasks.filter(t => !t.completed).length === 0 ? <p className="text-center py-10 text-slate-300 italic">Clear schedule!</p> : tasks.filter(t => !t.completed).slice(0, 5).map(task => (
+                         <div key={task.id} className="flex items-center space-x-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                           <input type="checkbox" className="w-5 h-5 accent-emerald-500" onChange={() => setTasks(tasks.map(t => t.id === task.id ? {...t, completed: true} : t))} />
+                           <span className="font-bold text-slate-800">{task.title}</span>
+                         </div>
+                       ))}
                     </div>
-                  </Card>
-                </div>
-                <Card title="Quick Investment Check">
-                   <div className="space-y-6">
-                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="flex justify-between items-center mb-2">
-                           <span className="text-xs font-bold text-slate-400 uppercase">Operational Cost</span>
-                           <DollarSign size={14} className="text-emerald-500" />
-                        </div>
-                        <h4 className="text-3xl font-black text-slate-800">
-                          ${inventory.ingredients.reduce((s, x) => s + (x.cost || 0), 0).toFixed(0)} <span className="text-xs font-bold text-slate-400">on supplies</span>
-                        </h4>
-                      </div>
-                      <Button variant="outline" className="w-full" onClick={() => navigateTo('reports')}>View Financial Reports</Button>
-                   </div>
-                </Card>
+                 </Card>
+                 <Card title="Upcoming Projections">
+                    <div className="space-y-4">
+                       {plants.filter(p => p.projectedHarvestDate && p.status !== 'Harvested').slice(0, 4).map(p => (
+                         <div key={p.id} className="flex justify-between items-center p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100">
+                           <span className="font-bold text-slate-800">{p.name}</span>
+                           <span className="text-xs font-black text-emerald-600">Harvest {new Date(p.projectedHarvestDate!).toLocaleDateString()}</span>
+                         </div>
+                       ))}
+                    </div>
+                 </Card>
               </div>
             </div>
           )}
@@ -580,41 +483,16 @@ export default function App() {
           {activeView === 'reports' && <ReportsView plants={plants} setups={setups} inventory={inventory} />}
           
           {activeView === 'plants' && (
-             <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-               <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-black text-slate-800">Plant Registry</h3>
-                  <Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}>Log New Plant</Button>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             <div className="space-y-8 animate-in fade-in duration-500">
+               <div className="flex justify-between items-center"><h3 className="text-2xl font-black text-slate-800">Plant Registry</h3><Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}>Add Plant</Button></div>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {plants.map(p => (
-                   <Card key={p.id} className="hover:shadow-xl transition-shadow group" title={p.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(p); setModalType('plant'); setIsModalOpen(true); }} className="text-slate-300 hover:text-emerald-500 transition-colors p-1"><Edit2 size={16}/></button><button onClick={() => deletePlant(p.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1"><Trash2 size={16}/></button></div>}>
-                     <div className="flex justify-between items-start mb-6">
-                        <div className="flex flex-col">
-                          <p className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full inline-block mb-1 ${p.status === 'Healthy' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                            {p.status}
-                          </p>
-                          <span className="text-sm text-slate-500 italic">{p.variety}</span>
-                          {p.cost && <p className="text-xs font-bold text-emerald-600 mt-1">${p.cost} Investment</p>}
-                        </div>
-                        <div className="text-right">
-                           <p className="text-xl font-black text-slate-800">{p.harvestRecords?.reduce((s, h) => s + Number(h.amount), 0) || 0}g</p>
-                           <p className="text-[10px] text-slate-400 font-bold uppercase">Total Yield</p>
-                        </div>
-                     </div>
-                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <Activity size={10} /> Lifecycle Timeline
-                        </p>
-                        <PlantLifecycleTimeline plant={p} />
-                     </div>
-                     <div className="flex gap-3">
-                        <Button variant="outline" className="text-xs py-2 px-3 flex-1 border-slate-100" onClick={() => { setSelectedItem(p); setModalType('harvest'); setIsModalOpen(true); }}>
-                           <Scale size={14}/> Harvest Data
-                        </Button>
-                     </div>
+                   <Card key={p.id} title={p.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(p); setModalType('plant'); setIsModalOpen(true); }} className="text-slate-300 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deletePlant(p.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></div>}>
+                     <div className="mb-4"><span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">{p.status}</span><p className="text-sm text-slate-500 italic mt-1">{p.variety}</p></div>
+                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Timeline</p><PlantLifecycleTimeline plant={p} /></div>
+                     <Button variant="outline" className="w-full text-xs" onClick={() => { setSelectedItem(p); setModalType('harvest'); setIsModalOpen(true); }}>Log Harvest</Button>
                    </Card>
                  ))}
-                 {plants.length === 0 && <div className="col-span-full py-32 text-center text-slate-300 italic border-2 border-dashed border-slate-100 rounded-[3rem]">No plants logged yet. Get started by adding your first seed.</div>}
                </div>
              </div>
           )}
@@ -623,129 +501,87 @@ export default function App() {
              <div className="space-y-8 animate-in fade-in duration-500">
                <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Systems</h3><Button onClick={() => { setSelectedItem(null); setModalType('setup'); setIsModalOpen(true); }}>Add System</Button></div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {setups.map(s => {
-                    const projectCost = (s.cost || 0) + 
-                                       plants.filter(p => p.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0) +
-                                       inventory.equipment.filter(e => e.setupId === s.id).reduce((sum, x) => sum + (x.cost || 0), 0);
-                    return (
-                      <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500 transition-colors"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16}/></button></div>}>
-                        <div className="flex justify-between items-center mb-2">
-                          <p className="text-xs font-bold text-emerald-600 uppercase">{s.type}</p>
-                          <span className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded-lg text-slate-500">PROJECT TOTAL: ${projectCost.toFixed(2)}</span>
-                        </div>
-                        <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
-                        <div className="flex justify-between items-center text-xs text-slate-400 font-bold"><span>{s.location}</span><span>{s.reservoirSize}</span></div>
-                      </Card>
-                    );
-                 })}
-                 {setups.length === 0 && <div className="col-span-full py-20 text-center text-slate-300">No systems defined yet.</div>}
+                 {setups.map(s => (
+                   <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></div>}>
+                     <p className="text-xs font-bold text-emerald-600 uppercase mb-2">{s.type}</p>
+                     <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
+                     <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest"><span>Spent: ${s.cost || 0}</span><span>Size: {s.reservoirSize}</span></div>
+                   </Card>
+                 ))}
                </div>
              </div>
-          )}
-
-          {activeView === 'inventory' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex justify-between"><h3 className="text-2xl font-bold text-slate-800">Growth Pantry</h3><div className="flex gap-2"><Button variant="dark" onClick={() => { setSelectedItem(null); setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button onClick={() => { setSelectedItem(null); setModalType('ingred'); setIsModalOpen(true); }}>Add Ingredient</Button></div></div>
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                 <Card title="Hardware">
-                    <div className="space-y-2">
-                      {inventory.equipment.length === 0 ? <p className="text-slate-300 italic text-sm">No hardware logged.</p> : inventory.equipment.map(e => (
-                        <div key={e.id} className="p-4 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
-                          <div>
-                            <span className="font-bold text-slate-800">{e.name}</span>
-                            <span className="text-[10px] ml-2 text-slate-400 uppercase">({e.status})</span>
-                            {e.cost && <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">Cost: ${e.cost}</p>}
-                          </div>
-                          <button onClick={() => deleteEquipment(e.id)} className="text-red-400 hover:text-red-600 p-2"><Trash2 size={14}/></button>
-                        </div>
-                      ))}
-                    </div>
-                 </Card>
-                 <Card title="Nutrients & Additives">
-                    <div className="space-y-2">
-                      {inventory.ingredients.length === 0 ? <p className="text-slate-300 italic text-sm">No ingredients logged.</p> : inventory.ingredients.map(i => (
-                        <div key={i.id} className="p-4 bg-white border border-slate-100 rounded-xl flex justify-between items-center shadow-sm group">
-                          <div>
-                            <span className="font-bold text-slate-800">{i.name}</span>
-                            <span className="text-xs text-slate-400 ml-2">{i.quantity}{i.unit}</span>
-                            {i.cost && <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">Cost: ${i.cost}</p>}
-                          </div>
-                          <button onClick={() => deleteIngredient(i.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-2"><Trash2 size={14}/></button>
-                        </div>
-                      ))}
-                    </div>
-                 </Card>
-               </div>
-            </div>
-          )}
-
-          {activeView === 'calendar' && (
-            <div className="max-w-xl mx-auto space-y-6 animate-in fade-in duration-500">
-               <h3 className="text-2xl font-bold text-slate-800">Tasks Schedule</h3>
-               <form onSubmit={e => { e.preventDefault(); const f = e.target as any; addTask(f.task.value, f.date.value); f.reset(); }} className="flex gap-2">
-                 <input name="task" required placeholder="What to do?" className="flex-1 p-4 border rounded-2xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20" />
-                 <input name="date" required type="date" className="p-4 border rounded-2xl bg-white shadow-sm outline-none" />
-                 <Button type="submit">Add</Button>
-               </form>
-               <div className="space-y-2">
-                 {tasks.length === 0 ? <p className="text-center py-12 text-slate-300">Schedule is clear!</p> : tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border border-slate-100 flex justify-between items-center shadow-sm"><div><p className="font-bold text-slate-800">{t.title}</p><p className="text-xs text-slate-400 font-medium">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={18}/></button></div>)}
-               </div>
-            </div>
-          )}
-
-          {activeView === 'settings' && (
-            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-              <Card title="Developer Utilities">
-                 <div className="space-y-4">
-                   <p className="text-sm text-slate-500">Linked Payment Target: <strong>{paypalId}</strong></p>
-                   <Button onClick={seedAppData} variant="dark">Seed Demo Data with Financials</Button>
-                 </div>
-              </Card>
-              <Card title="Data Continuity">
-                 <div className="grid grid-cols-2 gap-4">
-                   <Button onClick={handleExport} className="w-full"><Download size={18}/> Export Data</Button>
-                   <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="w-full"><Upload size={18}/> Restore Data</Button>
-                   <input type="file" ref={fileInputRef} className="hidden" onChange={handleImport} />
-                 </div>
-              </Card>
-            </div>
-          )}
-
-          {activeView === 'support' && (
-            <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500">
-               <div className="text-center space-y-4">
-                 <h2 className="text-5xl font-black text-slate-800">Support <span className="text-emerald-600">Us</span></h2>
-                 <p className="text-slate-500 text-lg">Help us grow and improve the platform.</p>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  {[5, 15, 50].map(amt => (
-                    <Card key={amt} className="text-center p-8 hover:shadow-2xl transition-all hover:-translate-y-1">
-                      <Heart className="mx-auto text-red-500 mb-4" size={40} />
-                      <h4 className="text-3xl font-black mb-6 text-slate-800">${amt}</h4>
-                      <Button onClick={() => window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=${paypalId}&amount=${amt}&currency_code=USD`, '_blank')} className="w-full">Donate</Button>
-                    </Card>
-                  ))}
-               </div>
-            </div>
           )}
           
           {activeView === 'guide' && <GuideView />}
           {activeView === 'troubleshoot' && <TroubleshootView />}
+          {activeView === 'inventory' && (
+            <div className="space-y-8 animate-in fade-in duration-500">
+               <div className="flex justify-between"><h3 className="text-2xl font-bold text-slate-800">Pantry</h3><div className="flex gap-2"><Button onClick={() => { setSelectedItem(null); setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button variant="dark" onClick={() => { setSelectedItem(null); setModalType('ingred'); setIsModalOpen(true); }}>Add Supply</Button></div></div>
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                 <Card title="Hardware">
+                    {inventory.equipment.map(e => (
+                      <div key={e.id} className="p-4 bg-slate-50 rounded-xl mb-2 flex justify-between">
+                        <span>{e.name}</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400"><Trash2 size={14}/></button>
+                      </div>
+                    ))}
+                 </Card>
+                 <Card title="Supplies">
+                    {inventory.ingredients.map(i => (
+                      <div key={i.id} className="p-4 bg-white border rounded-xl mb-2 flex justify-between">
+                        <span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400"><Trash2 size={14}/></button>
+                      </div>
+                    ))}
+                 </Card>
+               </div>
+            </div>
+          )}
+          {activeView === 'calendar' && (
+            <div className="max-w-xl mx-auto space-y-6 animate-in fade-in duration-500">
+               <h3 className="text-2xl font-bold text-slate-800">Tasks</h3>
+               <form onSubmit={e => { e.preventDefault(); const f = e.target as any; addTask(f.task.value, f.date.value); f.reset(); }} className="flex gap-2">
+                 <input name="task" required placeholder="To do..." className="flex-1 p-4 border rounded-2xl outline-none" />
+                 <input name="date" required type="date" className="p-4 border rounded-2xl outline-none" />
+                 <Button type="submit">Add</Button>
+               </form>
+               {tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border flex justify-between items-center"><div><p className="font-bold">{t.title}</p><p className="text-xs text-slate-400">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400"><Trash2 size={18}/></button></div>)}
+            </div>
+          )}
+          {activeView === 'settings' && (
+            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+              <Card title="Utilities">
+                 <Button onClick={() => {
+                   const demoS: Setup = { id: 'd1', name: 'Kratky Basil Bin', type: 'Kratky', startDate: new Date().toISOString(), reservoirSize: '5L', location: 'Living Room', notes: 'My first setup.', cost: 20 };
+                   const demoP: Plant = { id: 'dp1', setupId: 'd1', name: 'Genovese Basil', variety: 'Genovese', plantedDate: new Date(Date.now() - 30 * 86400000).toISOString(), projectedHarvestDate: new Date(Date.now() + 15 * 86400000).toISOString(), status: 'Healthy', lastChecked: new Date().toISOString(), notes: '', harvestRecords: [] };
+                   setSetups([demoS]); setPlants([demoP]); alert("Seeded!");
+                 }} variant="dark">Seed Demo Data</Button>
+                 <div className="grid grid-cols-2 gap-4 mt-4"><Button onClick={() => { const b = new Blob([JSON.stringify({ setups, plants, inventory, tasks })], { type: 'application/json' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'hydrogrow-backup.json'; a.click(); }}>Export</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}>Restore</Button><input type="file" ref={fileInputRef} className="hidden" onChange={e => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = x => { const j = JSON.parse(x.target?.result as string); if(j.setups) setSetups(j.setups); if(j.plants) setPlants(j.plants); if(j.inventory) setInventory(j.inventory); if(j.tasks) setTasks(j.tasks); alert("Restored!"); }; r.readAsText(f); } }} /></div>
+              </Card>
+            </div>
+          )}
+          {activeView === 'support' && (
+            <div className="max-w-xl mx-auto text-center space-y-8 py-20">
+              <Heart className="mx-auto text-red-500" size={64} />
+              <h2 className="text-4xl font-black">Support Us</h2>
+              <p className="text-slate-500">Help us keep HydroGrow Pro free and expert-driven.</p>
+              <div className="grid grid-cols-3 gap-4">
+                {[5, 15, 50].map(amt => <Button key={amt} onClick={() => window.open(`https://paypal.me/hydrogrow/${amt}`)}>${amt}</Button>)}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalType?.toUpperCase() || ''}>
          {modalType === 'setup' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { name: f.sname.value, type: f.stype.value, startDate: f.sdate.value, reservoirSize: f.ssize.value, location: f.sloc.value, notes: f.snotes.value, cost: Number(f.scost.value) || 0 }; selectedItem ? updateSetup(selectedItem.id, d) : addSetup(d); setIsModalOpen(false); }}>
-             <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
              <div className="flex gap-2">
-               <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>Aquaponic</option><option>Aeroponic</option><option>NFT</option></select>
-               <input name="scost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+               <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>NFT</option></select>
+               <input name="scost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border outline-none" />
              </div>
-             <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             <textarea name="snotes" placeholder="Notes" defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 h-24 outline-none focus:ring-4 focus:ring-emerald-500/5 resize-none" />
+             <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
+             <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
+             <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
              <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Create"} System</Button>
            </form>
          )}
@@ -757,38 +593,38 @@ export default function App() {
              plantedDate: f.pdate.value, 
              germinatedDate: f.pgerm.value || undefined,
              floweredDate: f.pflow.value || undefined,
+             projectedGerminationDate: f.pgerm_proj.value || undefined,
+             projectedFloweringDate: f.pflow_proj.value || undefined,
+             projectedHarvestDate: f.phrv_proj.value || undefined,
              status: f.pstatus.value,
              lastChecked: new Date().toISOString(), 
              notes: f.pnotes.value,
              cost: Number(f.pcost.value) || 0
            }; selectedItem ? updatePlant(selectedItem.id, d) : addPlant(d); setIsModalOpen(false); }}>
              <div className="flex gap-2">
-                <select name="pId" defaultValue={selectedItem?.setupId} className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-                <input name="pcost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+                <select name="pId" defaultValue={selectedItem?.setupId} className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                <input name="pcost" type="number" step="0.01" placeholder="Seed Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border outline-none" />
              </div>
-             <input name="pname" placeholder="Species (e.g. Basil)" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <input name="pvar" placeholder="Variety (e.g. Genovese)" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
+             <div className="flex gap-2">
+               <input name="pname" placeholder="Plant (e.g. Basil)" required defaultValue={selectedItem?.name} className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none" />
+               <Button variant="accent" onClick={(e: any) => handlePredict(e.currentTarget.form)} disabled={isPredicting} className="p-4 rounded-2xl">
+                 {isPredicting ? <div className="animate-spin h-5 w-5 border-2 border-slate-900 border-t-transparent rounded-full" /> : <Sparkles size={20} />}
+               </Button>
+             </div>
+             <input name="pvar" placeholder="Variety (e.g. Genovese)" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
              <div className="grid grid-cols-2 gap-4">
-               <div>
-                 <label className="text-[10px] uppercase font-bold text-slate-400 ml-2">Planted</label>
-                 <input name="pdate" type="date" defaultValue={selectedItem?.plantedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-               </div>
-               <div>
-                 <label className="text-[10px] uppercase font-bold text-slate-400 ml-2">Germinated</label>
-                 <input name="pgerm" type="date" defaultValue={selectedItem?.germinatedDate} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
+               <div><label className="text-[10px] uppercase font-black text-slate-400">Planted</label><input name="pdate" type="date" defaultValue={selectedItem?.plantedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" /></div>
+               <div><label className="text-[10px] uppercase font-black text-slate-400">Germinated (Actual)</label><input name="pgerm" type="date" defaultValue={selectedItem?.germinatedDate} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" /></div>
+             </div>
+             <div className="p-4 bg-emerald-50/50 rounded-3xl border border-emerald-100 space-y-4">
+               <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Sparkles size={10} /> Simple Projections</h4>
+               <div className="grid grid-cols-3 gap-2">
+                 <div><label className="text-[8px] uppercase font-black text-slate-400">Germination</label><input name="pgerm_proj" type="date" defaultValue={selectedItem?.projectedGerminationDate} className="w-full p-2 bg-white rounded-xl border outline-none text-[10px]" /></div>
+                 <div><label className="text-[8px] uppercase font-black text-slate-400">Flowering</label><input name="pflow_proj" type="date" defaultValue={selectedItem?.projectedFloweringDate} className="w-full p-2 bg-white rounded-xl border outline-none text-[10px]" /></div>
+                 <div><label className="text-[8px] uppercase font-black text-slate-400">Harvest</label><input name="phrv_proj" type="date" defaultValue={selectedItem?.projectedHarvestDate} className="w-full p-2 bg-white rounded-xl border outline-none text-[10px]" /></div>
                </div>
              </div>
-             <div>
-               <label className="text-[10px] uppercase font-bold text-slate-400 ml-2">Flowered / Fruited</label>
-               <input name="pflow" type="date" defaultValue={selectedItem?.floweredDate} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             </div>
-             <select name="pstatus" defaultValue={selectedItem?.status || "Healthy"} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none">
-                <option>Healthy</option>
-                <option>Needs Attention</option>
-                <option>Struggling</option>
-                <option>Harvested</option>
-             </select>
-             <textarea name="pnotes" placeholder="Notes" defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 h-24 outline-none focus:ring-4 focus:ring-emerald-500/5 resize-none" />
+             <select name="pstatus" defaultValue={selectedItem?.status || "Healthy"} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none"><option>Healthy</option><option>Needs Attention</option><option>Harvested</option></select>
              <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Add"} Plant</Button>
            </form>
          )}
@@ -796,54 +632,23 @@ export default function App() {
            <div className="space-y-6">
               <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addHarvest(selectedItem.id, { amount: Number(f.hamount.value), unit: f.hunit.value, date: f.hdate.value }); f.reset(); }}>
                 <div className="flex gap-2">
-                  <input name="hamount" type="number" step="0.1" placeholder="Amount" required className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-                  <select name="hunit" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>g</option><option>kg</option><option>oz</option><option>pcs</option></select>
+                  <input name="hamount" type="number" placeholder="Amt" required className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none" />
+                  <select name="hunit" className="w-24 p-4 bg-slate-50 rounded-2xl border outline-none"><option>g</option><option>kg</option><option>oz</option></select>
                 </div>
-                <input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-                <Button type="submit" className="w-full py-4">Save Harvest Record</Button>
+                <input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
+                <Button type="submit" className="w-full py-4">Save Harvest</Button>
               </form>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                 <h4 className="font-bold text-xs text-slate-400 uppercase tracking-widest px-2">Logs for {selectedItem.name}</h4>
-                 {selectedItem.harvestRecords?.slice().reverse().map((h: HarvestRecord) => (
-                   <div key={h.id} className="p-3 bg-slate-50 rounded-xl flex justify-between items-center text-sm border border-slate-100">
-                     <div>
-                       <span className="font-bold text-emerald-600">{h.amount}{h.unit}</span>
-                       <span className="text-slate-400 text-xs ml-2">{new Date(h.date).toLocaleDateString()}</span>
-                     </div>
-                     <button onClick={() => deleteHarvest(selectedItem.id, h.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
-                   </div>
-                 ))}
-                 {(!selectedItem.harvestRecords || selectedItem.harvestRecords.length === 0) && <p className="text-center py-4 text-slate-300 italic text-xs">No records yet.</p>}
+                 {selectedItem.harvestRecords?.map((h: HarvestRecord) => <div key={h.id} className="p-3 bg-slate-50 rounded-xl flex justify-between"><span>{h.amount}{h.unit}</span><button onClick={() => deleteHarvest(selectedItem.id, h.id)} className="text-red-400"><Trash2 size={14}/></button></div>)}
               </div>
            </div>
          )}
          {modalType === 'equip' && (
            <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: f.ename.value, category: f.ecat.value, status: 'Active', purchaseDate: new Date().toISOString(), notes: '', cost: Number(f.ecost.value) || 0, setupId: f.eSetup.value || undefined }); setIsModalOpen(false); }}>
-             <input name="ename" placeholder="Device Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <div className="flex gap-2">
-               <select name="ecat" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Lighting</option><option>Pump</option><option>Monitoring</option><option>Structural</option><option>Other</option></select>
-               <input name="ecost" type="number" step="0.01" placeholder="Cost ($)" className="w-28 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             </div>
-             <select name="eSetup" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none">
-               <option value="">General (No System)</option>
-               {setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-             </select>
-             <Button type="submit" variant="dark" className="w-full py-4 text-lg">Inventory Gear</Button>
-           </form>
-         )}
-         {modalType === 'ingred' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: f.iname.value, brand: f.ibrand.value, quantity: f.iqty.value, unit: f.iunit.value, purpose: f.ipurp.value, notes: '', cost: Number(f.icost.value) || 0 }); setIsModalOpen(false); }}>
-             <input name="iname" placeholder="Item Name" required className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/5" />
-             <div className="flex gap-2">
-               <input name="ibrand" placeholder="Brand" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-               <input name="icost" type="number" step="0.01" placeholder="Cost ($)" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             </div>
-             <select name="ipurp" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none"><option>Nutrient</option><option>pH Adjuster</option><option>Additive</option><option>Water Treatment</option></select>
-             <div className="flex gap-2">
-               <input name="iqty" placeholder="Qty" className="flex-1 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-               <input name="iunit" placeholder="Unit (e.g. ml)" className="w-24 p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none" />
-             </div>
-             <Button type="submit" className="w-full py-4 text-lg">Save Item</Button>
+             <input name="ename" placeholder="Gear Name" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
+             <div className="flex gap-2"><select name="ecat" className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none"><option>Lighting</option><option>Pump</option></select><input name="ecost" type="number" placeholder="$" className="w-24 p-4 bg-slate-50 rounded-2xl border outline-none" /></div>
+             <select name="eSetup" className="w-full p-4 bg-slate-50 rounded-2xl border outline-none"><option value="">No System</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+             <Button type="submit" className="w-full py-4">Save Gear</Button>
            </form>
          )}
       </Modal>
@@ -851,152 +656,33 @@ export default function App() {
   );
 }
 
-// Sub-views moved inside main component for context access
 const GuideView = () => {
-  const [topic, setTopic] = useState('');
   const [guide, setGuide] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const commonTopics = [
-    'pH Management', 'EC/PPM Basics', 'Kratky Method', 'Deep Water Culture', 
-    'Nutrient Ratios', 'Lighting PAR/DLI', 'Water Temperature', 'Oxygenation'
-  ];
-
-  const fetchGuide = async (t: string) => {
-    if (!t) return;
-    setLoading(true);
-    try {
-      const res = await getGrowGuide(t);
-      setGuide(res);
-    } catch (e) {
-      setGuide("Failed to fetch guide.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const fetchG = async (t: string) => { setLoading(true); const res = await getGrowGuide(t); setGuide(res); setLoading(false); };
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="text-center space-y-4">
-        <h2 className="text-4xl font-black text-slate-800">Growth <span className="text-emerald-600">Wiki</span></h2>
-        <p className="text-slate-500">Essential knowledge for soil-less success, powered by AI.</p>
+      <div className="flex flex-wrap gap-2">
+        {['Kratky Method', 'Nutrient Mix', 'pH Balance', 'LED PAR'].map(t => <button key={t} onClick={() => fetchG(t)} className="px-6 py-3 bg-white border rounded-xl font-bold hover:bg-emerald-50">{t}</button>)}
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="space-y-6">
-          <Card title="Common Questions">
-            <div className="flex flex-col gap-2">
-              {commonTopics.map(t => (
-                <button 
-                  key={t} 
-                  onClick={() => { setTopic(t); fetchGuide(t); }} 
-                  className="w-full text-left px-4 py-3 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl text-sm font-bold transition-all border border-slate-100"
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </Card>
-        </div>
-        <div className="lg:col-span-2">
-          <Card className="h-full min-h-[500px]">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
-                <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-                <p className="font-bold">Consulting the grow masters...</p>
-              </div>
-            ) : guide ? (
-              <div className="prose prose-emerald p-2">
-                <div className="whitespace-pre-wrap text-slate-600 leading-relaxed text-sm p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  {guide}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-300 italic text-center">
-                 <BookOpen size={64} className="mb-4 opacity-10" />
-                 <p>Select a topic to view the guide.</p>
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
+      <Card className="h-[500px]">
+        {loading ? <div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto mt-20" /> : guide ? <div className="prose prose-emerald p-4 text-sm whitespace-pre-wrap">{guide}</div> : <p className="text-center mt-20 text-slate-300 italic">Select a topic.</p>}
+      </Card>
     </div>
   );
 };
 
 const TroubleshootView = () => {
-  const [description, setDescription] = useState('');
-  const [image, setImage] = useState<string | null>(null);
-  const [diagnosis, setDiagnosis] = useState<string | null>(null);
+  const [diag, setDiag] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setImage(base64String.split(',')[1]);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAnalyze = async () => {
-    if (!description) return;
-    setLoading(true);
-    try {
-      const result = await troubleshootPlant(description, image || undefined);
-      setDiagnosis(result);
-    } catch (e) {
-      setDiagnosis("Analysis failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const handleA = async (e: any) => { e.preventDefault(); setLoading(true); const res = await troubleshootPlant(e.target.desc.value); setDiag(res); setLoading(false); };
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="text-center space-y-4">
-        <h2 className="text-4xl font-black text-slate-800">AI <span className="text-emerald-600">Botanist</span></h2>
-        <p className="text-slate-500">Expert diagnosis for your plant issues.</p>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <Card title="Symptom Input">
-            <div className="space-y-4">
-              <textarea 
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe leaf spots, curling, wilting..." 
-                className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 h-32 outline-none focus:ring-4 focus:ring-emerald-500/5 resize-none text-sm" 
-              />
-              <div 
-                onClick={() => document.getElementById('troubleshoot-img-file')?.click()}
-                className="w-full h-40 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-emerald-50 transition-all relative overflow-hidden"
-              >
-                {image ? (
-                  <img src={`data:image/jpeg;base64,${image}`} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="text-center">
-                    <Droplets className="text-emerald-500 mx-auto mb-2 opacity-50" size={32} />
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Upload Photo</p>
-                  </div>
-                )}
-              </div>
-              <input id="troubleshoot-img-file" type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-              <Button onClick={handleAnalyze} disabled={loading || !description} className="w-full">Run Analysis</Button>
-            </div>
-          </Card>
-        </div>
-        <div className="lg:col-span-3">
-          <Card title="Results" className="h-full min-h-[400px]">
-            {loading ? <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent mx-auto mt-20" /> : diagnosis ? (
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 text-sm whitespace-pre-wrap text-slate-600">{diagnosis}</div>
-            ) : <p className="text-center py-20 text-slate-300 italic">Report will appear here.</p>}
-          </Card>
-        </div>
-      </div>
+      <form onSubmit={handleA} className="space-y-4">
+        <textarea name="desc" placeholder="Describe symptoms..." className="w-full p-6 bg-white border rounded-[2rem] h-40 outline-none" />
+        <Button type="submit" disabled={loading} className="w-full">{loading ? "Consulting..." : "Analyze symptoms"}</Button>
+      </form>
+      {diag && <Card title="Diagnosis report"><div className="text-sm text-slate-600 whitespace-pre-wrap">{diag}</div></Card>}
     </div>
   );
 };

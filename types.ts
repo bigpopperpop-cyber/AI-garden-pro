@@ -31,6 +31,10 @@ export interface Plant {
   notes: string;
   harvestRecords: HarvestRecord[];
   cost?: number;
+  // Projections
+  projectedGerminationDate?: string;
+  projectedFloweringDate?: string;
+  projectedHarvestDate?: string;
 }
 
 export interface Equipment {

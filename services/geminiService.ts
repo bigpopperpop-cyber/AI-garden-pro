@@ -1,11 +1,8 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // AI troubleshooting function using Gemini Pro for expert plant diagnosis
 export const troubleshootPlant = async (description: string, imageBase64?: string) => {
-  // Always create a new instance right before use to ensure latest API key
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Using gemini-3-pro-preview for complex reasoning and STEM analysis as per guidelines
   const model = 'gemini-3-pro-preview';
 
   let contents;
@@ -31,22 +28,21 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
         temperature: 0.7,
       }
     });
-    // response.text is a property, not a method
-    return response.text || "I couldn't generate a diagnosis. Please try again with more details.";
+    return response.text || "I couldn't generate a diagnosis.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Error connecting to the AI consultant. Please check your connection and try again.";
+    return "Error connecting to the AI consultant.";
   }
 };
 
-// Fetches growth guides for specific topics using Flash for speed and basic Q&A
+// Fetches growth guides
 export const getGrowGuide = async (topic: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: { parts: [{ text: `Explain the topic "${topic}" for a beginner indoor hydroponic or aquaponic grower. Use simple terms, analogies, and explain WHY it matters. Keep it under 300 words and use Markdown.` }] },
+      contents: { parts: [{ text: `Explain the topic "${topic}" for a beginner indoor hydroponic grower. Keep it under 300 words and use Markdown.` }] },
     });
     return response.text || "Could not find guide content.";
   } catch (error) {
@@ -54,33 +50,46 @@ export const getGrowGuide = async (topic: string) => {
   }
 };
 
-// Generates a daily expert tip for the dashboard
-export const getDailyTip = async () => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: { parts: [{ text: "Provide a one-sentence expert tip for a beginner hydroponic/aquaponic grower today. Focus on things like water quality, lighting, or common beginner mistakes." }] },
-    });
-    return response.text?.trim() || "Keep your pH between 5.5 and 6.5 for optimal nutrient uptake!";
-  } catch (error) {
-    return "Ensure your water temperature stays below 72°F to prevent root rot.";
-  }
-};
-
-// Provides specific advice for a plant in a given system type
-export const getPlantingAdvice = async (plantName: string, systemType: string) => {
+// Expert projections for plant growth
+export const getPlantProjections = async (plantName: string, variety: string, systemType: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
   
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: { parts: [{ text: `Provide expert advice for growing ${plantName} in a ${systemType} system. Include ideal pH, EC levels, and common pitfalls.` }] },
+      contents: `For a ${plantName} (${variety}) grown in a ${systemType} system, provide the typical number of days from planting to: germination, flowering/first fruit, and first harvest.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            daysToGerminate: { type: Type.INTEGER },
+            daysToFlower: { type: Type.INTEGER },
+            daysToHarvest: { type: Type.INTEGER },
+          },
+          required: ["daysToGerminate", "daysToFlower", "daysToHarvest"]
+        }
+      }
     });
-    return response.text;
+    return JSON.parse(response.text || "{}");
   } catch (error) {
-    return "Unable to get advice right now.";
+    console.error("Projection Error:", error);
+    return null;
+  }
+};
+
+// Dashboard tip
+export const getDailyTip = async () => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const model = 'gemini-3-flash-preview';
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: { parts: [{ text: "Provide a one-sentence expert tip for a beginner hydroponic/aquaponic grower today." }] },
+    });
+    return response.text?.trim() || "Keep your pH between 5.5 and 6.5!";
+  } catch (error) {
+    return "Ensure your water temperature stays below 72°F.";
   }
 };
