@@ -9,7 +9,7 @@ const safeParseAIJson = (text: string) => {
     const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
-    console.error("Critical: AI JSON Parsing Error. Raw Text:", text, e);
+    console.error("AI JSON Parsing Error:", e);
     return null;
   }
 };
@@ -19,7 +19,7 @@ const safeParseAIJson = (text: string) => {
  */
 export const troubleshootPlant = async (description: string, imageBase64?: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const model = 'gemini-3-pro-preview';
 
     let contents;
@@ -47,7 +47,7 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
     return response.text || "No diagnosis could be generated.";
   } catch (error) {
     console.error("troubleshootPlant Error:", error);
-    return "The AI consultant is currently offline. Please try again in a few minutes.";
+    return "The AI consultant is currently offline. Please try again shortly.";
   }
 };
 
@@ -56,16 +56,15 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
  */
 export const getGrowGuide = async (topic: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const model = 'gemini-3-flash-preview';
     const response = await ai.models.generateContent({
       model,
-      contents: { parts: [{ text: `Explain '${topic}' for a beginner indoor farmer in 200 words using Markdown.` }] },
+      contents: { parts: [{ text: `Provide a detailed beginner guide for '${topic}' in an indoor hydroponic context using Markdown.` }] },
     });
     return response.text || "Guide content unavailable.";
   } catch (error) {
-    console.error("getGrowGuide Error:", error);
-    return "Wiki database connection error.";
+    return "Error connecting to guide database.";
   }
 };
 
@@ -74,7 +73,7 @@ export const getGrowGuide = async (topic: string) => {
  */
 export const generateStarterKit = async (budget: string, space: string, goal: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const model = 'gemini-3-pro-preview';
     const prompt = `Hydroponic Starter Plan: Budget=${budget}, Space=${space}, Plants=${goal}. Provide equipment list and first-week guide.`;
     
@@ -88,8 +87,7 @@ export const generateStarterKit = async (budget: string, space: string, goal: st
     });
     return response.text || "Plan generation failed.";
   } catch (error) {
-    console.error("generateStarterKit Error:", error);
-    return "Failed to connect to AI Mentor.";
+    return "Failed to generate plan.";
   }
 };
 
@@ -98,20 +96,12 @@ export const generateStarterKit = async (budget: string, space: string, goal: st
  */
 export const getPlantProjections = async (plantName: string, variety: string, systemType: string) => {
   try {
-    if (!process.env.API_KEY) {
-      throw new Error("API Key configuration is missing.");
-    }
-
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Using gemini-3-flash-preview for speed and efficiency on basic text data tasks
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const model = 'gemini-3-flash-preview';
     
     const varietyStr = variety ? `(variety: ${variety})` : "";
-    const prompt = `Research growth milestones for: ${plantName} ${varietyStr} in a ${systemType} indoor system.
-    Return ONLY valid JSON with these keys: 
-    "daysToGerminate" (integer), 
-    "daysToFlower" (integer), 
-    "daysToHarvest" (integer).`;
+    const prompt = `Calculate typical growth milestones for: ${plantName} ${varietyStr} in a ${systemType} system.
+    Return ONLY JSON: {"daysToGerminate": int, "daysToFlower": int, "daysToHarvest": int}`;
 
     const response = await ai.models.generateContent({
       model,
@@ -130,25 +120,17 @@ export const getPlantProjections = async (plantName: string, variety: string, sy
       }
     });
     
-    const text = response.text;
-    if (!text) {
-      throw new Error("Empty response from AI service.");
-    }
-    
-    const data = safeParseAIJson(text);
-    if (!data) {
-      throw new Error("Invalid format received from AI.");
-    }
+    const data = safeParseAIJson(response.text);
+    if (!data) throw new Error("Invalid AI format");
 
     return {
-      daysToGerminate: Math.max(1, Number(data.daysToGerminate) || 0),
-      daysToFlower: Math.max(1, Number(data.daysToFlower) || 0),
-      daysToHarvest: Math.max(1, Number(data.daysToHarvest) || 0)
+      daysToGerminate: data.daysToGerminate || 7,
+      daysToFlower: data.daysToFlower || 30,
+      daysToHarvest: data.daysToHarvest || 60
     };
-  } catch (error: any) {
-    console.error("getPlantProjections Error Detail:", error);
-    // Standardize error message for UI consumption
-    throw new Error(error.message || "Unknown connectivity error.");
+  } catch (error) {
+    console.error("Projections error:", error);
+    return null;
   }
 };
 
@@ -157,7 +139,7 @@ export const getPlantProjections = async (plantName: string, variety: string, sy
  */
 export const getDailyTip = async () => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const model = 'gemini-3-flash-preview';
     const response = await ai.models.generateContent({
       model,
