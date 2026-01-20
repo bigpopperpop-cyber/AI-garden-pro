@@ -1,11 +1,10 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 /**
  * Safely parses JSON from a string that might contain markdown backticks.
  */
 const safeParseAIJson = (text: string) => {
   try {
-    // Remove markdown code blocks if present
     const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
@@ -52,7 +51,7 @@ export const troubleshootPlant = async (description: string, imageBase64?: strin
 };
 
 /**
- * Basic growing guides.
+ * Basic growing guides enhanced with Google Search for real-time data.
  */
 export const getGrowGuide = async (topic: string) => {
   try {
@@ -60,34 +59,28 @@ export const getGrowGuide = async (topic: string) => {
     const model = 'gemini-3-flash-preview';
     const response = await ai.models.generateContent({
       model,
-      contents: { parts: [{ text: `Provide a detailed beginner guide for '${topic}' in an indoor hydroponic context using Markdown.` }] },
-    });
-    return response.text || "Guide content unavailable.";
-  } catch (error) {
-    return "Error connecting to guide database.";
-  }
-};
-
-/**
- * Customized starter kit generation.
- */
-export const generateStarterKit = async (budget: string, space: string, goal: string) => {
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const model = 'gemini-3-pro-preview';
-    const prompt = `Hydroponic Starter Plan: Budget=${budget}, Space=${space}, Plants=${goal}. Provide equipment list and first-week guide.`;
-    
-    const response = await ai.models.generateContent({
-      model,
-      contents: { parts: [{ text: prompt }] },
+      contents: { parts: [{ text: `Provide a detailed beginner guide for '${topic}' in an indoor hydroponic context. Include current market considerations for hardware.` }] },
       config: {
-        systemInstruction: "You are a master hydroponic engineer. Provide a detailed, budget-conscious setup plan in Markdown.",
-        temperature: 0.8,
+        tools: [{ googleSearch: {} }]
       }
     });
-    return response.text || "Plan generation failed.";
+    
+    let text = response.text || "Guide content unavailable.";
+    
+    // Extract grounding URLs if available
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    if (chunks && chunks.length > 0) {
+      text += "\n\n### Current Market Sources:\n";
+      chunks.forEach((chunk: any) => {
+        if (chunk.web?.uri) {
+          text += `- [${chunk.web.title || 'Market Link'}](${chunk.web.uri})\n`;
+        }
+      });
+    }
+    
+    return text;
   } catch (error) {
-    return "Failed to generate plan.";
+    return "Error connecting to guide database.";
   }
 };
 
@@ -149,4 +142,22 @@ export const getDailyTip = async () => {
   } catch (error) {
     return "Maintain water temps between 18-22°C for optimal root health.";
   }
+};
+
+/**
+ * Live API connection for the hands-free botanist.
+ */
+export const connectLiveBotanist = (callbacks: any) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  return ai.live.connect({
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+    callbacks,
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+      },
+      systemInstruction: 'You are an expert indoor hydroponic and aquaponic consultant. You are helping a user hands-free. Keep responses concise and practical.',
+    },
+  });
 };
