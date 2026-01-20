@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -47,6 +48,7 @@ import { troubleshootPlant, getDailyTip, getGrowGuide, getPlantProjections, gene
 
 // --- Shared UI Components ---
 
+// Reusable button component with various style variants
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
   const base = "px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ";
   const variants: any = {
@@ -64,6 +66,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   );
 };
 
+// Modal dialog component for capturing inputs or showing details
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children?: React.ReactNode }) => {
   if (!isOpen) return null;
   return (
@@ -75,7 +78,7 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 max-h-[80vh] overflow-y-auto">
+        <div className="p-6 overflow-y-auto max-h-[80vh]">
           {children}
         </div>
       </div>
@@ -83,853 +86,267 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
   );
 };
 
-const Card = ({ children, title, action, className = "" }: any) => (
-  <div className={`bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col ${className}`}>
-    {(title || action) && (
-      <div className="flex justify-between items-center mb-6">
-        {title && <h3 className="text-lg font-semibold text-slate-800">{title}</h3>}
-        {action}
-      </div>
-    )}
-    <div className="flex-1">{children}</div>
-  </div>
-);
+// Main application component containing routing logic and global state
+const App = () => {
+  const [view, setView] = useState<ViewState>('dashboard');
+  const [dailyTip, setDailyTipStr] = useState<string>("Loading your daily grower tip...");
 
-const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all duration-300 ${
-      active 
-        ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-200 font-bold' 
-        : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 font-bold'
-    }`}
-  >
-    <Icon size={22} className={active ? "scale-110" : ""} />
-    <span className="truncate">{label}</span>
-  </button>
-);
-
-const SimpleBarChart = ({ data }: { data: { label: string, value: number }[] }) => {
-  const max = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="h-64 flex items-end justify-around space-x-4 pt-10 px-4">
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-          <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] px-2 py-1 rounded z-20 pointer-events-none">
-            {d.value}
-          </div>
-          <div 
-            className="w-full bg-emerald-500 rounded-t-lg transition-all duration-700 ease-out hover:bg-emerald-600 cursor-help"
-            style={{ height: `${(d.value / max) * 100}%` }}
-          />
-          <span className="text-[9px] font-bold text-slate-400 mt-2 rotate-45 origin-left whitespace-nowrap">{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// --- Lifecycle Timeline ---
-
-const PlantLifecycleTimeline = ({ plant }: { plant: Plant }) => {
-  const steps = [
-    { label: 'Planted', date: plant.plantedDate, icon: Sprout, actual: true },
-    { label: 'Germinated', date: plant.germinatedDate || plant.projectedGerminationDate, icon: Zap, actual: !!plant.germinatedDate, projected: !plant.germinatedDate && !!plant.projectedGerminationDate },
-    { label: 'Flowering', date: plant.floweredDate || plant.projectedFloweringDate, icon: Star, actual: !!plant.floweredDate, projected: !plant.floweredDate && !!plant.projectedFloweringDate },
-    { label: 'Harvest Ready', date: plant.projectedHarvestDate, icon: Scale, actual: false, projected: !!plant.projectedHarvestDate },
-  ].filter(s => !!s.date).sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
-
-  // Calculate current progress
-  const now = new Date().getTime();
-  const start = new Date(plant.plantedDate).getTime();
-  const target = plant.projectedHarvestDate ? new Date(plant.projectedHarvestDate).getTime() : now + (30 * 86400000);
-  const total = target - start;
-  const current = Math.min(now - start, total);
-  const progressPercent = Math.max(0, Math.min(100, (current / total) * 100));
-
-  return (
-    <div className="space-y-4">
-      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
-        <div className="bg-emerald-500 h-full transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
-      </div>
-      <div className="space-y-4 relative py-2">
-        <div className="absolute left-[19px] top-6 bottom-6 w-0.5 bg-slate-100" />
-        {steps.map((step, i) => (
-          <div key={i} className="flex items-center space-x-4 relative z-10">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${
-              step.actual 
-                ? 'bg-emerald-600 text-white' 
-                : step.projected 
-                  ? 'bg-white border-2 border-dashed border-emerald-200 text-emerald-400'
-                  : 'bg-white border-2 border-slate-100 text-slate-300'
-            }`}>
-              <step.icon size={16} />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <p className="text-xs font-black text-slate-800">{step.label}</p>
-                {step.projected && <span className="text-[8px] bg-emerald-50 text-emerald-600 px-1 rounded font-black uppercase">Projected</span>}
-              </div>
-              <p className="text-[10px] text-slate-400 font-bold">{new Date(step.date!).toLocaleDateString()}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// --- Landing & Reports ---
-
-const LandingPage = ({ onEnterApp, onGoToSupport }: { onEnterApp: () => void, onGoToSupport: () => void }) => {
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900 overflow-x-hidden">
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xl"><Sprout size={24} /></div>
-          <h1 className="text-xl font-black tracking-tighter">HydroGrow Pro</h1>
-        </div>
-        <div className="flex items-center space-x-4">
-          <button onClick={onEnterApp} className="hidden md:block text-slate-600 font-bold hover:text-emerald-600 transition-colors">Login</button>
-          <Button onClick={onEnterApp}>Get Started</Button>
-        </div>
-      </nav>
-
-      <section className="pt-32 md:pt-48 pb-20 px-6 max-w-7xl mx-auto text-center">
-        <div className="inline-block px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full text-xs font-black uppercase tracking-widest mb-6 animate-pulse">Smart Indoor Farming Platform</div>
-        <h1 className="text-5xl md:text-8xl font-black tracking-tighter leading-[0.9] mb-8">
-          The Future of <span className="text-emerald-600 underline decoration-emerald-200 decoration-8 underline-offset-8">Hydroponics</span> is AI-Driven.
-        </h1>
-        <p className="text-xl text-slate-500 max-w-2xl mx-auto mb-12 font-medium">
-          Professional tracking, AI-powered diagnosis, and real-time growth analytics for your indoor farm.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-          <Button onClick={onEnterApp} className="w-full sm:w-auto text-xl py-6 px-10">Launch App</Button>
-          <Button onClick={onGoToSupport} variant="outline" className="w-full sm:w-auto text-xl py-6 px-10">Support Us</Button>
-        </div>
-      </section>
-
-      <section className="py-20 px-6 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-        {[
-          { icon: Stethoscope, title: "AI Plant Health", text: "Submit photos of your plants for instant diagnosis using advanced Gemini Pro vision." },
-          { icon: TrendingUp, title: "Growth Forecasts", text: "Predict germination and harvest dates specifically for your system type." },
-          { icon: BarChart3, title: "Yield Reports", text: "Keep detailed logs and analyze your harvest history to optimize your growth cycles." }
-        ].map((f, i) => (
-          <div key={i} className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
-            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform"><f.icon size={32}/></div>
-            <h3 className="text-2xl font-bold mb-4">{f.title}</h3>
-            <p className="text-slate-500 leading-relaxed font-medium">{f.text}</p>
-          </div>
-        ))}
-      </section>
-
-      <footer className="py-12 border-t border-slate-100 text-center text-slate-400 font-bold text-sm">
-        &copy; 2025 HydroGrow Pro. Cultivating the future of agriculture.
-      </footer>
-    </div>
-  );
-};
-
-const ReportsView = ({ plants, setups, inventory }: { plants: Plant[], setups: Setup[], inventory: { equipment: Equipment[], ingredients: Ingredient[] } }) => {
-  const harvestData = useMemo(() => {
-    const data: { [key: string]: number } = {};
-    plants.forEach(p => {
-      p.harvestRecords?.forEach(h => {
-        const month = new Date(h.date).toLocaleString('default', { month: 'short' });
-        data[month] = (data[month] || 0) + h.amount;
-      });
-    });
-    return Object.entries(data).map(([label, value]) => ({ label, value }));
-  }, [plants]);
-
-  const investmentBySystem = useMemo(() => {
-    const data: { [key: string]: number } = {};
-    setups.forEach(s => {
-      data[s.name] = (data[s.name] || 0) + (s.cost || 0);
-    });
-    return Object.entries(data).map(([label, value]) => ({ label, value }));
-  }, [setups]);
-
-  const totalSpent = useMemo(() => {
-    const equipCost = inventory.equipment.reduce((s, e) => s + (e.cost || 0), 0);
-    const supplyCost = inventory.ingredients.reduce((s, i) => s + (i.cost || 0), 0);
-    const setupCost = setups.reduce((s, x) => s + (x.cost || 0), 0);
-    const plantCost = plants.reduce((s, p) => s + (p.cost || 0), 0);
-    return equipCost + supplyCost + setupCost + plantCost;
-  }, [inventory, setups, plants]);
-
-  return (
-    <div className="space-y-10 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Total Investment">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center"><DollarSign size={24}/></div>
-            <div>
-              <p className="text-3xl font-black text-slate-800">${totalSpent.toFixed(0)}</p>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Across all logs</p>
-            </div>
-          </div>
-        </Card>
-        <Card title="Avg Plant Yield">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><Scale size={24}/></div>
-            <div>
-              <p className="text-3xl font-black text-slate-800">
-                {plants.length > 0 ? (plants.reduce((s, p) => s + (p.harvestRecords?.reduce((hS, h) => hS + h.amount, 0) || 0), 0) / plants.length).toFixed(1) : 0}g
-              </p>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grams per Seedling</p>
-            </div>
-          </div>
-        </Card>
-        <Card title="Maintenance Rate">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><Activity size={24}/></div>
-            <div>
-              <p className="text-3xl font-black text-slate-800">{setups.length > 0 ? (plants.length / setups.length).toFixed(1) : 0}</p>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Plants/System</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card title="Harvest Weight Timeline (g)">
-          {harvestData.length > 0 ? <SimpleBarChart data={harvestData} /> : <div className="h-64 flex items-center justify-center text-slate-300 italic">No harvest data available.</div>}
-        </Card>
-        <Card title="Financial Split by System ($)">
-          {investmentBySystem.length > 0 ? <SimpleBarChart data={investmentBySystem} /> : <div className="h-64 flex items-center justify-center text-slate-300 italic">No cost distribution data.</div>}
-        </Card>
-      </div>
-    </div>
-  );
-};
-
-// --- Main App Component ---
-
-export default function App() {
-  const [mode, setMode] = useState<'website' | 'platform'>('website');
-  const [activeView, setActiveView] = useState<ViewState>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [dailyTip, setDailyTip] = useState<string>("Loading your grower intelligence...");
-  const [isPredicting, setIsPredicting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- Data State ---
-  const [setups, setSetups] = useState<Setup[]>([]);
-  const [plants, setPlants] = useState<Plant[]>([]);
-  const [inventory, setInventory] = useState<{equipment: Equipment[], ingredients: Ingredient[]}>({ equipment: [], ingredients: [] });
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [paypalId, setPaypalId] = useState<string>('gizmooo@yahoo.com');
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'setup' | 'plant' | 'equip' | 'ingred' | 'harvest' | 'water' | null>(null);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  // --- Defensive Helpers for Form Elements ---
-  const getElements = (form: any) => form?.elements || {};
-  const getVal = (form: any, name: string) => {
-    const els = getElements(form);
-    const control = els.namedItem ? els.namedItem(name) : (els[name] || form[name]);
-    return control?.value || '';
-  };
-  const getNumVal = (form: any, name: string) => Number(getVal(form, name)) || 0;
-
-  // --- Handlers ---
-  const navigateTo = (view: ViewState) => {
-    setActiveView(view);
-    setIsSidebarOpen(false);
-  };
-
+  // Effect to fetch a personalized tip from Gemini on initial load
   useEffect(() => {
-    const s = localStorage.getItem('hydro_setups');
-    const p = localStorage.getItem('hydro_plants');
-    const i = localStorage.getItem('hydro_inventory');
-    const t = localStorage.getItem('hydro_tasks');
-    const pay = localStorage.getItem('hydro_paypal');
-    if (s) setSetups(JSON.parse(s));
-    if (p) setPlants(JSON.parse(p));
-    if (i) setInventory(JSON.parse(i));
-    if (t) setTasks(JSON.parse(t));
-    if (pay) setPaypalId(pay);
-    getDailyTip().then(setDailyTip);
+    getDailyTip().then(setDailyTipStr).catch(() => setDailyTipStr("Maintain water temps between 18-22°C for optimal root health."));
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('hydro_setups', JSON.stringify(setups));
-    localStorage.setItem('hydro_plants', JSON.stringify(plants));
-    localStorage.setItem('hydro_inventory', JSON.stringify(inventory));
-    localStorage.setItem('hydro_tasks', JSON.stringify(tasks));
-    localStorage.setItem('hydro_paypal', paypalId);
-  }, [setups, plants, inventory, tasks, paypalId]);
-
-  const addSetup = (data: any) => setSetups([...setups, { ...data, id: Date.now().toString(), waterLogs: [] }]);
-  const updateSetup = (id: string, data: any) => setSetups(setups.map(s => s.id === id ? { ...s, ...data } : s));
-  const deleteSetup = (id: string) => {
-    if(confirm("Delete system?")) {
-      setSetups(setups.filter(s => s.id !== id));
-      setPlants(plants.map(p => p.setupId === id ? { ...p, setupId: '' } : p));
-    }
-  };
-
-  const addWaterLog = (setupId: string, log: Omit<WaterLog, 'id'>) => {
-    setSetups(setups.map(s => s.id === setupId ? {
-      ...s,
-      waterLogs: [...(s.waterLogs || []), { id: Date.now().toString(), ...log }]
-    } : s));
-  };
-
-  const addPlant = (data: any) => setPlants([...plants, { ...data, id: Date.now().toString(), harvestRecords: [] }]);
-  const updatePlant = (id: string, data: any) => setPlants(plants.map(p => p.id === id ? { ...p, ...data } : p));
-  const deletePlant = (id: string) => confirm("Delete plant log?") && setPlants(plants.filter(p => p.id !== id));
-
-  const addHarvest = (plantId: string, record: { amount: number, unit: string, date: string }) => {
-    setPlants(plants.map(p => p.id === plantId ? {
-      ...p,
-      harvestRecords: [...(p.harvestRecords || []), { id: Date.now().toString(), ...record }]
-    } : p));
-  };
-
-  const deleteHarvest = (plantId: string, harvestId: string) => {
-    setPlants(plants.map(p => p.id === plantId ? {
-      ...p,
-      harvestRecords: (p.harvestRecords || []).filter(h => h.id !== harvestId)
-    } : p));
-  };
-
-  const addEquipment = (data: any) => setInventory(prev => ({ ...prev, equipment: [...prev.equipment, { ...data, id: Date.now().toString() }] }));
-  const deleteEquipment = (id: string) => setInventory(prev => ({ ...prev, equipment: prev.equipment.filter(e => e.id !== id) }));
-  const addIngredient = (data: any) => setInventory(prev => ({ ...prev, ingredients: [...prev.ingredients, { ...data, id: Date.now().toString() }] }));
-  const deleteIngredient = (id: string) => setInventory(prev => ({ ...prev, ingredients: prev.ingredients.filter(i => i.id !== id) }));
-  const addTask = (title: string, date: string) => setTasks([...tasks, { id: Date.now().toString(), title, date, completed: false, priority: 'Medium' }]);
-
-  // --- AI Logic ---
-  const handlePredict = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const form = e.currentTarget.closest('form');
-    if (!form) return;
-    const name = getVal(form, 'pname');
-    const variety = getVal(form, 'pvar');
-    const setupId = getVal(form, 'pId');
-    const plantedDateStr = getVal(form, 'pdate');
-    if (!name || name.trim() === '') return alert("Enter species name first.");
-    setIsPredicting(true);
-    try {
-      const system = setups.find(s => s.id === setupId)?.type || 'Hydroponic';
-      const projections = await getPlantProjections(name, variety, system);
-      if (projections) {
-        const baseDate = new Date(plantedDateStr || new Date());
-        const formatDate = (days: number | undefined) => {
-          if (!days) return '';
-          const d = new Date(baseDate);
-          d.setDate(d.getDate() + days);
-          return d.toISOString().split('T')[0];
-        };
-        const els = getElements(form);
-        const setElVal = (id: string, val: string) => {
-          const control = els.namedItem ? els.namedItem(id) : (els[id] || form[id]);
-          if (control) { control.value = val; control.dispatchEvent(new Event('input', { bubbles: true })); }
-        };
-        setElVal('pgerm_proj', formatDate(projections.daysToGerminate));
-        setElVal('pflow_proj', formatDate(projections.daysToFlower));
-        setElVal('phrv_proj', formatDate(projections.daysToHarvest));
-      }
-    } catch (err) { alert("AI Service unreachable."); } finally { setIsPredicting(false); }
-  };
-
-  if (mode === 'website') return <LandingPage onEnterApp={() => { setMode('platform'); navigateTo('dashboard'); }} onGoToSupport={() => { setMode('platform'); navigateTo('support'); }} />;
+  // Helper component for navigation items
+  const SidebarItem = ({ id, icon: Icon, label }: { id: ViewState, icon: any, label: string }) => (
+    <button
+      onClick={() => setView(id)}
+      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
+        view === id 
+          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
+          : 'text-slate-600 hover:bg-slate-100'
+      }`}
+    >
+      <Icon size={20} />
+      <span className="font-semibold">{label}</span>
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-100 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-8 flex items-center justify-between">
-            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setMode('website')}>
-              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xl"><Sprout size={24} /></div>
-              <h1 className="text-xl font-black text-slate-800 tracking-tighter">HydroGrow Pro</h1>
-            </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><X/></button>
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
+      {/* Sidebar Navigation */}
+      <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-6 space-y-8 shrink-0">
+        <div className="flex items-center space-x-3 px-2">
+          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+            <Sprout size={24} />
           </div>
-          <nav className="flex-1 px-4 space-y-2 py-4 overflow-y-auto">
-            <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeView === 'dashboard'} onClick={() => navigateTo('dashboard')} />
-            <SidebarItem icon={Layers} label="Systems" active={activeView === 'setups'} onClick={() => navigateTo('setups')} />
-            <SidebarItem icon={Sprout} label="Plants" active={activeView === 'plants'} onClick={() => navigateTo('plants')} />
-            <SidebarItem icon={BarChart3} label="Analytics" active={activeView === 'reports'} onClick={() => navigateTo('reports')} />
-            <SidebarItem icon={BookOpen} label="Grower's Wiki" active={activeView === 'guide'} onClick={() => navigateTo('guide')} />
-            <SidebarItem icon={Stethoscope} label="AI Consultant" active={activeView === 'troubleshoot'} onClick={() => navigateTo('troubleshoot')} />
-            <SidebarItem icon={FlaskConical} label="Inventory" active={activeView === 'inventory'} onClick={() => navigateTo('inventory')} />
-            <SidebarItem icon={Calendar} label="Calendar" active={activeView === 'calendar'} onClick={() => navigateTo('calendar')} />
-            <SidebarItem icon={Settings} label="Settings" active={activeView === 'settings'} onClick={() => navigateTo('settings')} />
-            <SidebarItem icon={Heart} label="Support Us" active={activeView === 'support'} onClick={() => navigateTo('support')} />
-          </nav>
+          <span className="text-2xl font-black tracking-tight text-emerald-600">HydroMaster</span>
+        </div>
+
+        <nav className="flex-1 space-y-2 overflow-y-auto pr-2">
+          <SidebarItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
+          <SidebarItem id="setups" icon={Layers} label="Systems" />
+          <SidebarItem id="plants" icon={Sprout} label="My Plants" />
+          <SidebarItem id="inventory" icon={FlaskConical} label="Nutrients" />
+          <SidebarItem id="calendar" icon={Calendar} label="Schedule" />
+          <SidebarItem id="troubleshoot" icon={Stethoscope} label="AI Diagnosis" />
+          <SidebarItem id="reports" icon={BarChart3} label="Analytics" />
+          <SidebarItem id="guide" icon={BookOpen} label="Growing Guide" />
+        </nav>
+
+        <div className="pt-6 border-t border-slate-100">
+          <SidebarItem id="settings" icon={Settings} label="Settings" />
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-20 glass-effect sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 border-b border-slate-100 shrink-0">
-           <div className="flex items-center space-x-4">
-             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"><Menu/></button>
-             <h2 className="text-lg md:text-xl font-bold text-slate-800 truncate">{activeView.toUpperCase()}</h2>
-           </div>
-           <div onClick={() => navigateTo('settings')} className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all overflow-hidden"><img src="https://picsum.photos/seed/user/100" alt="User" /></div>
+      {/* Main UI Area */}
+      <main className="flex-1 overflow-y-auto p-10 bg-slate-50">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+          <div>
+            <h1 className="text-4xl font-black text-slate-800 capitalize tracking-tight">{view}</h1>
+            <p className="text-slate-500 mt-1 font-medium">{dailyTip}</p>
+          </div>
+          <div className="flex space-x-3">
+            <Button variant="outline" className="px-4"><Search size={20}/></Button>
+            <Button onClick={() => {}} className="shadow-emerald-100">
+              <Plus size={20} />
+              <span>New Entry</span>
+            </Button>
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth">
-          {activeView === 'dashboard' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Dashboard: Overview of metrics and system health */}
+        {view === 'dashboard' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-xl font-bold flex items-center space-x-2 text-slate-700">
+                  <Activity className="text-emerald-500" />
+                  <span>Real-time Vitals</span>
+                </h2>
+                <div className="flex items-center space-x-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full uppercase tracking-widest">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <span>Sensors Online</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col justify-between h-36">
+                  <div className="text-blue-600 flex items-center space-x-2">
+                    <Droplets size={18}/> 
+                    <span className="text-xs font-black uppercase tracking-widest opacity-80">Average pH</span>
+                  </div>
+                  <div className="text-4xl font-black text-blue-900">6.2</div>
+                </div>
+                <div className="p-6 bg-orange-50/50 rounded-2xl border border-orange-100 flex flex-col justify-between h-36">
+                  <div className="text-orange-600 flex items-center space-x-2">
+                    <Waves size={18}/> 
+                    <span className="text-xs font-black uppercase tracking-widest opacity-80">Avg EC</span>
+                  </div>
+                  <div className="text-4xl font-black text-orange-900">1.8 <span className="text-sm font-bold opacity-40">mS/cm</span></div>
+                </div>
+                <div className="p-6 bg-emerald-50/50 rounded-2xl border border-emerald-100 flex flex-col justify-between h-36">
+                  <div className="text-emerald-600 flex items-center space-x-2">
+                    <Thermometer size={18}/> 
+                    <span className="text-xs font-black uppercase tracking-widest opacity-80">Water Temp</span>
+                  </div>
+                  <div className="text-4xl font-black text-emerald-900">21.5<span className="text-xl font-bold">°C</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-emerald-600 p-8 rounded-3xl text-white shadow-xl shadow-emerald-200 flex flex-col justify-between relative overflow-hidden group">
+              <Sparkles className="absolute -top-6 -right-6 w-32 h-32 text-emerald-400 opacity-20 rotate-12 group-hover:rotate-45 transition-transform duration-1000" />
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 shadow-inner">
+                  <Timer className="text-white" size={28} />
+                </div>
+                <h3 className="text-2xl font-black leading-tight">Harvest Forecast</h3>
+                <p className="text-emerald-50 mt-3 text-lg font-medium">
+                  Your <span className="text-white underline underline-offset-4 decoration-emerald-300">Genovese Basil</span> is ready in <span className="font-black">3 days</span>.
+                </p>
+              </div>
+              <button className="relative z-10 mt-8 flex items-center space-x-2 text-white font-black hover:translate-x-3 transition-transform duration-300">
+                <span>OPEN CALENDAR</span>
+                <ArrowRight size={20} />
+              </button>
+            </div>
+
+            {/* Logs and status widgets */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+              <h3 className="text-lg font-bold mb-6 flex items-center space-x-2 text-slate-800">
+                <History size={20} className="text-slate-400" />
+                <span>Recent Logs</span>
+              </h3>
+              <div className="space-y-6">
                 {[
-                  { label: "Systems", val: setups.length, icon: Layers },
-                  { label: "Plants", val: plants.length, icon: Sprout },
-                  { label: "Total Yield", val: `${plants.reduce((s, x) => s + (x.harvestRecords?.reduce((hS, h) => hS + h.amount, 0) || 0), 0)}g`, icon: Scale },
-                  { label: "Investment", val: `$${(setups.reduce((s, x) => s + (x.cost || 0), 0) + plants.reduce((s, x) => s + (x.cost || 0), 0)).toFixed(0)}`, icon: DollarSign }
-                ].map((s, i) => (
-                  <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="relative z-10">
-                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{s.label}</p>
-                      <h4 className="text-4xl font-black mt-1 text-slate-800">{s.val}</h4>
+                  { title: 'pH Adjusted', system: 'Lettuce DWC', time: '1h ago', icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-50' },
+                  { title: 'Nutrients Added', system: 'NFT Herbs', time: '4h ago', icon: FlaskConical, color: 'text-purple-500', bg: 'bg-purple-50' },
+                  { title: 'Harvest Recorded', system: 'Basil Tower', time: 'Yesterday', icon: Scale, color: 'text-amber-500', bg: 'bg-amber-50' }
+                ].map((log, i) => (
+                  <div key={i} className="flex items-center space-x-4 group cursor-pointer">
+                    <div className={`w-11 h-11 rounded-xl ${log.bg} ${log.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
+                      <log.icon size={20} />
                     </div>
-                    <s.icon className="absolute top-4 right-4 text-emerald-500 opacity-5" size={80} />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-800 leading-none mb-1">{log.title}</p>
+                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{log.system} • {log.time}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-              <Card className="bg-emerald-900 text-white border-none shadow-2xl relative overflow-hidden p-10">
-                 <div className="absolute top-0 right-0 p-4 opacity-10"><Leaf size={140}/></div>
-                 <div className="relative z-10 space-y-6">
-                   <div className="flex items-start space-x-4">
-                     <div className="p-4 bg-emerald-500/20 backdrop-blur rounded-2xl"><Zap size={28}/></div>
-                     <div>
-                       <h4 className="font-bold uppercase tracking-widest text-emerald-400 text-xs mb-2">Grower Intelligence</h4>
-                       <p className="text-xl md:text-2xl font-medium italic leading-relaxed">"{dailyTip}"</p>
-                     </div>
-                   </div>
-                   <Button onClick={() => navigateTo('guide')} variant="secondary" className="bg-white text-emerald-900 border-none">Start Wiki Wizard</Button>
-                 </div>
-              </Card>
-
-              {/* Water Lab Dashboard Snapshot */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                 <div className="lg:col-span-2">
-                   <Card title="System Performance Lab" action={<Button variant="outline" size="sm" onClick={() => navigateTo('setups')}>View All</Button>}>
-                      <div className="space-y-4">
-                        {setups.map(s => {
-                          const latestLog = s.waterLogs && s.waterLogs.length > 0 ? s.waterLogs[s.waterLogs.length - 1] : null;
-                          return (
-                            <div key={s.id} className="flex flex-col md:flex-row md:items-center justify-between p-5 bg-slate-50 border border-slate-100 rounded-3xl gap-4">
-                              <div>
-                                <h5 className="font-bold text-slate-800">{s.name}</h5>
-                                <p className="text-[10px] text-slate-400 uppercase font-black">{s.type}</p>
-                              </div>
-                              <div className="flex gap-4">
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center"><Waves size={16}/></div>
-                                  <div><p className="text-[9px] font-black text-slate-400 uppercase">pH</p><p className={`font-bold ${latestLog && (latestLog.ph < 5.5 || latestLog.ph > 6.5) ? 'text-red-500' : 'text-slate-800'}`}>{latestLog?.ph || '--'}</p></div>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center"><Zap size={16}/></div>
-                                  <div><p className="text-[9px] font-black text-slate-400 uppercase">EC</p><p className="font-bold text-slate-800">{latestLog?.ec || '--'}</p></div>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center"><Thermometer size={16}/></div>
-                                  <div><p className="text-[9px] font-black text-slate-400 uppercase">Temp</p><p className="font-bold text-slate-800">{latestLog?.temp || '--'}°</p></div>
-                                </div>
-                              </div>
-                              <Button variant="outline" className="text-xs py-2 px-4" onClick={() => { setSelectedItem(s); setModalType('water'); setIsModalOpen(true); }}>Log Lab</Button>
-                            </div>
-                          );
-                        })}
-                        {setups.length === 0 && <p className="text-center py-10 text-slate-300 italic">No systems to track.</p>}
-                      </div>
-                   </Card>
-                 </div>
-                 <Card title="Upcoming Maintenance">
-                    <div className="space-y-4">
-                       {tasks.filter(t => !t.completed).length === 0 ? <p className="text-center py-10 text-slate-300 italic">Clear schedule!</p> : tasks.filter(t => !t.completed).slice(0, 5).map(task => (
-                         <div key={task.id} className="flex items-center space-x-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                           <input type="checkbox" className="w-5 h-5 accent-emerald-500" onChange={() => setTasks(tasks.map(t => t.id === task.id ? {...t, completed: true} : t))} />
-                           <span className="font-bold text-slate-800">{task.title}</span>
-                         </div>
-                       ))}
-                    </div>
-                 </Card>
-              </div>
             </div>
-          )}
-          
-          {activeView === 'reports' && <ReportsView plants={plants} setups={setups} inventory={inventory} />}
-          
-          {activeView === 'plants' && (
-             <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex justify-between items-center"><h3 className="text-2xl font-black text-slate-800">Plant Registry</h3><Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}>Add Plant</Button></div>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {plants.map(p => (
-                   <Card key={p.id} title={p.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(p); setModalType('plant'); setIsModalOpen(true); }} className="text-slate-300 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deletePlant(p.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></div>}>
-                     <div className="mb-4"><span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${p.status === 'Healthy' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{p.status}</span><p className="text-sm text-slate-500 italic mt-1">{p.variety}</p></div>
-                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Growth Progress</p><PlantLifecycleTimeline plant={p} /></div>
-                     <Button variant="outline" className="w-full text-xs" onClick={() => { setSelectedItem(p); setModalType('harvest'); setIsModalOpen(true); }}>Log Harvest</Button>
-                   </Card>
-                 ))}
-                 {plants.length === 0 && <div className="col-span-full py-20 text-center text-slate-300 italic border-2 border-dashed border-slate-200 rounded-[2rem]">Empty grow logs. Add your first seed!</div>}
-               </div>
-             </div>
-          )}
 
-          {activeView === 'setups' && (
-             <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-slate-800">Systems</h3><Button onClick={() => { setSelectedItem(null); setModalType('setup'); setIsModalOpen(true); }}>Add System</Button></div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {setups.map(s => (
-                   <Card key={s.id} title={s.name} action={<div className="flex gap-2"><button onClick={() => { setSelectedItem(s); setModalType('setup'); setIsModalOpen(true); }} className="text-slate-400 hover:text-emerald-500"><Edit2 size={16}/></button><button onClick={() => deleteSetup(s.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></div>}>
-                     <p className="text-xs font-bold text-emerald-600 uppercase mb-2">{s.type}</p>
-                     <p className="text-sm text-slate-600 mb-4">{s.notes}</p>
-                     <div className="flex flex-wrap gap-2 mb-4">
-                        <div className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold">pH: {s.waterLogs?.length ? s.waterLogs[s.waterLogs.length-1].ph : '--'}</div>
-                        <div className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-bold">EC: {s.waterLogs?.length ? s.waterLogs[s.waterLogs.length-1].ec : '--'}</div>
-                     </div>
-                     <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest"><span>Spent: ${s.cost || 0}</span><span>Size: {s.reservoirSize}</span></div>
-                     <Button variant="outline" className="w-full mt-4 py-2 text-xs" onClick={() => { setSelectedItem(s); setModalType('water'); setIsModalOpen(true); }}>Add Water Log</Button>
-                   </Card>
-                 ))}
-                 {setups.length === 0 && <div className="col-span-full py-20 text-center text-slate-300 italic">No systems defined.</div>}
-               </div>
-             </div>
-          )}
-          
-          {activeView === 'guide' && <GuideView />}
-          {activeView === 'troubleshoot' && <TroubleshootView />}
-          {activeView === 'inventory' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex justify-between"><h3 className="text-2xl font-bold text-slate-800">Growth Pantry</h3><div className="flex gap-2"><Button onClick={() => { setSelectedItem(null); setModalType('equip'); setIsModalOpen(true); }}>Add Gear</Button><Button variant="dark" onClick={() => { setSelectedItem(null); setModalType('ingred'); setIsModalOpen(true); }}>Add Supply</Button></div></div>
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                 <Card title="Hardware">
-                    {inventory.equipment.map(e => (
-                      <div key={e.id} className="p-4 bg-slate-50 rounded-xl mb-2 flex justify-between border border-slate-100">
-                        <span>{e.name} (${e.cost || 0})</span><button onClick={() => deleteEquipment(e.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
-                      </div>
-                    ))}
-                    {inventory.equipment.length === 0 && <p className="text-slate-300 italic text-center py-4">No gear logged.</p>}
-                 </Card>
-                 <Card title="Supplies">
-                    {inventory.ingredients.map(i => (
-                      <div key={i.id} className="p-4 bg-white border rounded-xl mb-2 flex justify-between shadow-sm">
-                        <span>{i.name} - {i.quantity}{i.unit}</span><button onClick={() => deleteIngredient(i.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
-                      </div>
-                    ))}
-                    {inventory.ingredients.length === 0 && <p className="text-slate-300 italic text-center py-4">No supplies logged.</p>}
-                 </Card>
-               </div>
-            </div>
-          )}
-          {activeView === 'calendar' && (
-            <div className="max-w-xl mx-auto space-y-6 animate-in fade-in duration-500">
-               <h3 className="text-2xl font-bold text-slate-800">Tasks Schedule</h3>
-               <form onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addTask(getVal(f, 'task'), getVal(f, 'date')); (f as any).reset(); }} className="flex gap-2">
-                 <input name="task" required placeholder="What needs doing?" className="flex-1 p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500" />
-                 <input name="date" required type="date" className="p-4 border rounded-2xl outline-none" />
-                 <Button type="submit">Add</Button>
-               </form>
-               <div className="space-y-2">
-                 {tasks.map(t => <div key={t.id} className="p-5 bg-white rounded-2xl border flex justify-between items-center shadow-sm"><div><p className="font-bold">{t.title}</p><p className="text-xs text-slate-400">{t.date}</p></div><button onClick={() => setTasks(tasks.filter(x => x.id !== t.id))} className="text-red-400 p-2"><Trash2 size={18}/></button></div>)}
-                 {tasks.length === 0 && <p className="text-center py-12 text-slate-300 italic">Clear schedule!</p>}
-               </div>
-            </div>
-          )}
-          {activeView === 'settings' && (
-            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-              <Card title="Utilities">
-                 <Button onClick={() => {
-                   const demoS: Setup = { id: 'd1', name: 'Kitchen Bin', type: 'Kratky', startDate: new Date().toISOString(), reservoirSize: '5L', location: 'Kitchen', notes: 'First test.', cost: 25, waterLogs: [{ id: 'w1', date: new Date().toISOString(), ph: 6.0, ec: 800, temp: 22 }] };
-                   const demoP: Plant = { id: 'dp1', setupId: 'd1', name: 'Thai Basil', variety: 'Classic', plantedDate: new Date(Date.now() - 30 * 86400000).toISOString(), projectedHarvestDate: new Date(Date.now() + 15 * 86400000).toISOString(), status: 'Healthy', lastChecked: new Date().toISOString(), notes: 'Smells great.', harvestRecords: [], cost: 4 };
-                   setSetups([demoS]); setPlants([demoP]); alert("Seeded!");
-                 }} variant="dark">Seed Demo Data</Button>
-                 <div className="grid grid-cols-2 gap-4 mt-4">
-                   <Button onClick={() => { 
-                     const b = new Blob([JSON.stringify({ setups, plants, inventory, tasks })], { type: 'application/json' }); 
-                     const u = URL.createObjectURL(b); 
-                     const a = document.createElement('a'); 
-                     a.href = u; a.download = 'hydrogrow-backup.json'; a.click(); 
-                   }}>Export</Button>
-                   <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>Restore</Button>
-                   <input type="file" ref={fileInputRef} className="hidden" onChange={e => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = x => { const j = JSON.parse(x.target?.result as string); if(j.setups) setSetups(j.setups); if(j.plants) setPlants(j.plants); if(j.inventory) setInventory(j.inventory); if(j.tasks) setTasks(j.tasks); alert("Restored!"); }; r.readAsText(f); } }} />
-                 </div>
-              </Card>
-            </div>
-          )}
-          {activeView === 'support' && (
-            <div className="max-w-xl mx-auto text-center space-y-8 py-20 animate-in zoom-in-95 duration-500">
-              <Heart className="mx-auto text-red-500" size={64} />
-              <h2 className="text-4xl font-black">Support the Vision</h2>
-              <p className="text-slate-500">Help us grow HydroGrow Pro with better expert-driven data.</p>
-              <div className="grid grid-cols-3 gap-4">
-                {[5, 15, 50].map(amt => <Button key={amt} onClick={() => window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=${paypalId}&amount=${amt}&currency_code=USD`)}>${amt}</Button>)}
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Modals */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalType?.toUpperCase() || ''}>
-         {modalType === 'setup' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { name: getVal(f, 'sname'), type: getVal(f, 'stype'), startDate: getVal(f, 'sdate'), reservoirSize: getVal(f, 'ssize'), location: getVal(f, 'sloc'), notes: getVal(f, 'snotes'), cost: getNumVal(f, 'scost') }; selectedItem ? updateSetup(selectedItem.id, d) : addSetup(d); setIsModalOpen(false); }}>
-             <input name="sname" placeholder="System Name" required defaultValue={selectedItem?.name} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:ring-2 focus:ring-emerald-500" />
-             <div className="flex gap-2">
-               <select name="stype" defaultValue={selectedItem?.type || "Hydroponic"} className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none"><option>Hydroponic</option><option>Kratky</option><option>DWC</option><option>NFT</option></select>
-               <input name="scost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <input name="ssize" placeholder="Reservoir (L)" defaultValue={selectedItem?.reservoirSize} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             <input name="sdate" type="date" defaultValue={selectedItem?.startDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             <input name="sloc" placeholder="Location" defaultValue={selectedItem?.location} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             <textarea name="snotes" placeholder="General Notes..." defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none h-24 resize-none" />
-             <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Create"} System</Button>
-           </form>
-         )}
-
-         {modalType === 'water' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addWaterLog(selectedItem.id, { date: new Date().toISOString(), ph: getNumVal(f, 'ph'), ec: getNumVal(f, 'ec'), temp: getNumVal(f, 'temp'), notes: getVal(f, 'wnotes') }); setIsModalOpen(false); }}>
-             <p className="text-xs text-slate-500 mb-4">Logging for <strong>{selectedItem?.name}</strong></p>
-             <div className="grid grid-cols-3 gap-2">
-               <div><label className="text-[10px] uppercase font-black text-slate-400">pH Level</label><input name="ph" type="number" step="0.1" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:ring-2 focus:ring-blue-500" placeholder="6.0" /></div>
-               <div><label className="text-[10px] uppercase font-black text-slate-400">EC/PPM</label><input name="ec" type="number" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:ring-2 focus:ring-amber-500" placeholder="800" /></div>
-               <div><label className="text-[10px] uppercase font-black text-slate-400">Temp (°C)</label><input name="temp" type="number" step="0.1" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:ring-2 focus:ring-red-500" placeholder="22" /></div>
-             </div>
-             <textarea name="wnotes" placeholder="Additives or observations..." className="w-full p-4 bg-slate-50 rounded-2xl border outline-none h-24 resize-none" />
-             <Button type="submit" className="w-full py-4">Save Lab Log</Button>
-           </form>
-         )}
-         
-         {modalType === 'plant' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; const d = { 
-             setupId: getVal(f, 'pId'), 
-             name: getVal(f, 'pname'), 
-             variety: getVal(f, 'pvar'), 
-             plantedDate: getVal(f, 'pdate'), 
-             germinatedDate: getVal(f, 'pgerm') || undefined,
-             floweredDate: getVal(f, 'pflow') || undefined,
-             projectedGerminationDate: getVal(f, 'pgerm_proj') || undefined,
-             projectedFloweringDate: getVal(f, 'pflow_proj') || undefined,
-             projectedHarvestDate: getVal(f, 'phrv_proj') || undefined,
-             status: getVal(f, 'pstatus'),
-             lastChecked: new Date().toISOString(), 
-             notes: getVal(f, 'pnotes'),
-             cost: getNumVal(f, 'pcost')
-           }; selectedItem ? updatePlant(selectedItem.id, d) : addPlant(d); setIsModalOpen(false); }}>
-             <div className="flex gap-2">
-                <select name="pId" defaultValue={selectedItem?.setupId} className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-                <input name="pcost" type="number" step="0.01" placeholder="Cost ($)" defaultValue={selectedItem?.cost} className="w-28 p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <div className="flex gap-2">
-               <input name="pname" placeholder="Species (e.g. Basil, Lettuce)" required defaultValue={selectedItem?.name} className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none focus:ring-2 focus:ring-emerald-500" />
-               <Button variant="accent" onClick={handlePredict} disabled={isPredicting} className="p-4 rounded-2xl h-14 w-14">
-                 {isPredicting ? <div className="animate-spin h-5 w-5 border-2 border-slate-900 border-t-transparent rounded-full" /> : <Sparkles size={20} />}
-               </Button>
-             </div>
-             <input name="pvar" placeholder="Variety (e.g. Thai, Romaine)" defaultValue={selectedItem?.variety} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             <div className="grid grid-cols-2 gap-4">
-               <div><label className="text-[10px] uppercase font-black text-slate-400">Planted</label><input name="pdate" type="date" defaultValue={selectedItem?.plantedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" /></div>
-               <div><label className="text-[10px] uppercase font-black text-slate-400">Germinated</label><input name="pgerm" type="date" defaultValue={selectedItem?.germinatedDate} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" /></div>
-             </div>
-             <div className="p-4 bg-emerald-50/50 rounded-3xl border border-emerald-100 space-y-4">
-               <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Sparkles size={10} /> AI Growth Forecast</h4>
-               <div className="grid grid-cols-3 gap-2">
-                 <div><label className="text-[8px] uppercase font-black text-slate-400">Germination</label><input name="pgerm_proj" type="date" defaultValue={selectedItem?.projectedGerminationDate} className="w-full p-2 bg-white rounded-xl border outline-none text-[10px]" /></div>
-                 <div><label className="text-[8px] uppercase font-black text-slate-400">Flowering</label><input name="pflow_proj" type="date" defaultValue={selectedItem?.projectedFloweringDate} className="w-full p-2 bg-white rounded-xl border outline-none text-[10px]" /></div>
-                 <div><label className="text-[8px] uppercase font-black text-slate-400">Harvest</label><input name="phrv_proj" type="date" defaultValue={selectedItem?.projectedHarvestDate} className="w-full p-2 bg-white rounded-xl border outline-none text-[10px]" /></div>
-               </div>
-             </div>
-             <select name="pstatus" defaultValue={selectedItem?.status || "Healthy"} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none"><option>Healthy</option><option>Needs Attention</option><option>Harvested</option></select>
-             <textarea name="pnotes" placeholder="Notes..." defaultValue={selectedItem?.notes} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none h-24 resize-none" />
-             <Button type="submit" className="w-full py-4 text-lg">{selectedItem ? "Update" : "Add"} Plant</Button>
-           </form>
-         )}
-
-         {modalType === 'harvest' && (
-           <div className="space-y-6">
-              <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addHarvest(selectedItem.id, { amount: getNumVal(f, 'hamount'), unit: getVal(f, 'hunit'), date: getVal(f, 'hdate') }); (f as any).reset(); }}>
-                <div className="flex gap-2">
-                  <input name="hamount" type="number" step="0.1" placeholder="Amount" required className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none focus:ring-2 focus:ring-emerald-500" />
-                  <select name="hunit" className="w-24 p-4 bg-slate-50 rounded-2xl border outline-none"><option>g</option><option>kg</option><option>oz</option></select>
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+              <h3 className="text-lg font-bold mb-6 flex items-center space-x-2 text-slate-800">
+                <Zap size={20} className="text-amber-500" />
+                <span>Quick Stats</span>
+              </h3>
+              <div className="space-y-5">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex justify-between items-center mb-2.5">
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Nutrient Level</span>
+                    <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full uppercase">Refill Soon</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-rose-500 h-full w-[22%] rounded-full shadow-sm"></div>
+                  </div>
                 </div>
-                <input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-                <Button type="submit" className="w-full py-4">Save Harvest</Button>
-              </form>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                 {selectedItem?.harvestRecords?.map((h: HarvestRecord) => <div key={h.id} className="p-3 bg-slate-50 rounded-xl flex justify-between items-center text-sm border border-slate-100"><span>{h.amount}{h.unit}</span><button onClick={() => deleteHarvest(selectedItem.id, h.id)} className="text-red-400 p-2"><Trash2 size={14}/></button></div>)}
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex justify-between items-center mb-2.5">
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Growth Success</span>
+                    <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full uppercase">Optimal</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-500 h-full w-[94%] rounded-full shadow-sm"></div>
+                  </div>
+                </div>
               </div>
-           </div>
-         )}
-         
-         {modalType === 'equip' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addEquipment({ name: getVal(f, 'ename'), category: getVal(f, 'ecat'), status: 'Active', purchaseDate: new Date().toISOString(), notes: '', cost: getNumVal(f, 'ecost'), setupId: getVal(f, 'eSetup') || undefined }); setIsModalOpen(false); }}>
-             <input name="ename" placeholder="Device/Gear Name" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             <div className="flex gap-2"><select name="ecat" className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none"><option>Lighting</option><option>Pump</option><option>Monitoring</option><option>Other</option></select><input name="ecost" type="number" step="0.01" placeholder="$" className="w-24 p-4 bg-slate-50 rounded-2xl border outline-none" /></div>
-             <select name="eSetup" className="w-full p-4 bg-slate-50 rounded-2xl border outline-none"><option value="">Standalone</option>{setups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-             <Button type="submit" className="w-full py-4">Save Gear</Button>
-           </form>
-         )}
-         
-         {modalType === 'ingred' && (
-           <form className="space-y-4" onSubmit={e => { e.preventDefault(); const f = e.currentTarget; addIngredient({ name: getVal(f, 'iname'), brand: getVal(f, 'ibrand'), quantity: getVal(f, 'iqty'), unit: getVal(f, 'iunit'), purpose: getVal(f, 'ipurp'), notes: '', cost: getNumVal(f, 'icost') }); setIsModalOpen(false); }}>
-             <input name="iname" placeholder="Item Name" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             <div className="flex gap-2">
-               <input name="ibrand" placeholder="Brand" className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none" />
-               <input name="icost" type="number" step="0.01" placeholder="$" className="w-24 p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <div className="flex gap-2">
-               <input name="iqty" placeholder="Quantity" className="flex-1 p-4 bg-slate-50 rounded-2xl border outline-none" />
-               <input name="iunit" placeholder="Unit" className="w-24 p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <select name="ipurp" className="w-full p-4 bg-slate-50 rounded-2xl border outline-none"><option>Nutrient</option><option>pH Adjuster</option><option>Additive</option><option>Water Treatment</option></select>
-             <Button type="submit" className="w-full py-4">Save Supply</Button>
-           </form>
-         )}
-      </Modal>
-    </div>
-  );
-}
-
-// --- Specific Views ---
-
-const GuideView = () => {
-  const [guide, setGuide] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [wizardMode, setWizardMode] = useState(false);
-
-  const fetchG = async (t: string) => { 
-    setWizardMode(false);
-    setLoading(true); 
-    try { const res = await getGrowGuide(t); setGuide(res); } 
-    finally { setLoading(false); } 
-  };
-
-  const handleWizard = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const f = e.currentTarget;
-    const els = f.elements as any;
-    setLoading(true);
-    try {
-      const res = await generateStarterKit(els.budget.value, els.space.value, els.goal.value);
-      setGuide(res);
-      setWizardMode(false);
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-wrap gap-2">
-        <button onClick={() => setWizardMode(true)} className="px-6 py-3 bg-emerald-600 text-white border rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg flex items-center space-x-2"><Sparkles size={18}/><span>Starter Kit Wizard</span></button>
-        {['Kratky Method', 'Nutrient Mix', 'pH Balance', 'LED PAR', 'EC Levels'].map(t => <button key={t} onClick={() => fetchG(t)} className="px-6 py-3 bg-white border rounded-xl font-bold hover:bg-emerald-50 transition-colors shadow-sm">{t}</button>)}
-      </div>
-      
-      {wizardMode ? (
-        <Card title="Starter Kit AI Wizard">
-          <form onSubmit={handleWizard} className="space-y-4">
-             <p className="text-sm text-slate-500">Tell us your constraints, and our AI will build your custom shopping list.</p>
-             <div>
-               <label className="text-xs font-black uppercase text-slate-400">Total Budget ($)</label>
-               <input name="budget" placeholder="e.g. $100" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <div>
-               <label className="text-xs font-black uppercase text-slate-400">Available Space</label>
-               <input name="space" placeholder="e.g. Windowsill, Spare Closet" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <div>
-               <label className="text-xs font-black uppercase text-slate-400">What do you want to grow?</label>
-               <input name="goal" placeholder="e.g. Lettuce and Herbs" required className="w-full p-4 bg-slate-50 rounded-2xl border outline-none" />
-             </div>
-             <Button type="submit" className="w-full py-4" disabled={loading}>{loading ? "Consulting AI Mentor..." : "Generate Kit Guide"}</Button>
-          </form>
-        </Card>
-      ) : (
-        <Card className="min-h-[500px]">
-          {loading ? <div className="flex flex-col items-center justify-center h-full"><div className="animate-spin h-10 w-10 border-4 border-emerald-600 border-t-transparent rounded-full mb-4" /><p className="text-slate-500 font-bold">Consulting databases...</p></div> : guide ? <div className="prose prose-emerald p-4 text-sm whitespace-pre-wrap text-slate-600 leading-relaxed max-w-none">{guide}</div> : <div className="flex flex-col items-center justify-center h-full text-slate-300 italic"><BookOpen size={64} className="mb-4 opacity-10" /><p>Select a topic above or start the Wizard.</p></div>}
-        </Card>
-      )}
-    </div>
-  );
-};
-
-const TroubleshootView = () => {
-  const [diag, setDiag] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleA = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const els = e.currentTarget.elements as any;
-    const desc = els.namedItem('desc')?.value;
-    if(!desc) return;
-    setLoading(true);
-    try {
-      const rawBase64 = imageBase64 ? imageBase64.split(',')[1] : undefined;
-      const res = await troubleshootPlant(desc, rawBase64);
-      setDiag(res);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <form onSubmit={handleA} className="space-y-6">
-        <div className="relative">
-          <textarea 
-            name="desc" 
-            placeholder="Describe symptoms, discoloration, or growth issues..." 
-            className="w-full p-8 bg-white border rounded-[2rem] h-40 outline-none shadow-sm focus:ring-2 focus:ring-emerald-500 transition-all resize-none" 
-          />
-          <div className="absolute bottom-4 right-4 flex items-center gap-2">
-            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
-            {imageBase64 && (
-              <div className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-emerald-500 group">
-                <img src={imageBase64} className="w-full h-full object-cover" />
-                <button type="button" onClick={() => setImageBase64(null)} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white">
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-            <button type="button" onClick={() => fileInputRef.current?.click()} className={`p-4 rounded-full ${imageBase64 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'} hover:bg-emerald-200 transition-colors`}>
-              <Camera size={20} />
-            </button>
-          </div>
-        </div>
-        <Button type="submit" disabled={loading} className="w-full py-4 text-lg">
-          {loading ? (
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-              <span>Analyzing with Gemini Pro...</span>
             </div>
-          ) : "Expert Diagnosis"}
-        </Button>
-      </form>
-      {diag && (
-        <Card title="Diagnosis Report" className="bg-emerald-50/20 border-emerald-100">
-          <div className="prose prose-emerald prose-sm max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap">
-            {diag}
+
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+              <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-sm">
+                <Leaf size={36} />
+              </div>
+              <div className="text-6xl font-black text-slate-800 tracking-tighter">24</div>
+              <div className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px] mt-3">Active Plants Growing</div>
+            </div>
           </div>
-        </Card>
-      )}
-      {!diag && !loading && (
-        <div className="text-center py-20 text-slate-300 italic">
-          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Stethoscope size={32} className="opacity-20" />
+        )}
+
+        {/* AI Troubleshoot: Diagnostic interface powered by Gemini */}
+        {view === 'troubleshoot' && (
+          <div className="max-w-4xl mx-auto space-y-8">
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <div className="flex items-center space-x-6 mb-10">
+                <div className="w-20 h-20 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center shadow-sm">
+                  <Stethoscope size={40} />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-slate-800 tracking-tight">AI Plant Doctor</h2>
+                  <p className="text-slate-500 text-lg">Describe the symptoms or upload a photo for professional diagnosis.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="relative group">
+                  <textarea 
+                    className="w-full h-52 p-8 bg-slate-50/50 rounded-[2rem] border-2 border-slate-100 focus:border-emerald-500 focus:bg-white outline-none transition-all text-slate-700 text-lg leading-relaxed placeholder:text-slate-300 resize-none shadow-inner"
+                    placeholder="Ex: My lettuce leaves are turning yellow at the edges and feel soft, roots look brownish..."
+                  ></textarea>
+                  <div className="absolute bottom-6 right-8 text-[10px] font-black text-slate-400 uppercase tracking-widest pointer-events-none group-focus-within:opacity-0 transition-opacity">Gemini 3 Pro Powered</div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button variant="secondary" className="flex-1 py-5 rounded-2xl text-lg shadow-sm">
+                    <Camera size={24} />
+                    <span>Take/Upload Photo</span>
+                  </Button>
+                  <Button className="flex-1 py-5 rounded-2xl text-lg shadow-xl shadow-emerald-200">
+                    <span>Analyze Health</span>
+                    <ChevronRight size={24} />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                <h4 className="font-bold text-slate-800 flex items-center space-x-2 mb-4">
+                  <Activity size={20} className="text-rose-500" />
+                  <span>How Diagnosis Works</span>
+                </h4>
+                <p className="text-slate-600 leading-relaxed text-sm">
+                  Our expert model uses visual and textual pattern matching against thousands of botanical cases to pinpoint nutrient imbalances, pests, and bacterial infections.
+                </p>
+              </div>
+              <div className="bg-amber-50 p-8 rounded-3xl border border-amber-100 shadow-sm">
+                <h4 className="font-bold text-amber-800 flex items-center space-x-2 mb-4">
+                  <Star size={20} fill="currentColor" />
+                  <span>Grower Wisdom</span>
+                </h4>
+                <p className="text-amber-800/80 leading-relaxed text-sm italic font-medium">
+                  "Most common indoor growing issues are caused by incorrect pH or root zone temperature. Always verify your equipment first."
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="font-medium">Describe plant symptoms or upload a photo for AI analysis.</p>
-        </div>
-      )}
+        )}
+
+        {/* View placeholders */}
+        {view !== 'dashboard' && view !== 'troubleshoot' && (
+          <div className="flex flex-col items-center justify-center py-40">
+            <div className="w-24 h-24 bg-slate-100 rounded-[2rem] flex items-center justify-center mb-8 text-slate-300 shadow-inner">
+              <Wrench size={48} />
+            </div>
+            <h2 className="text-3xl font-black text-slate-400 tracking-tight">Section Coming Soon</h2>
+            <p className="text-slate-400 mt-2 font-medium">We're hard at work building advanced {view} tools.</p>
+            <Button variant="outline" className="mt-10" onClick={() => setView('dashboard')}>
+              Return to Dashboard
+            </Button>
+          </div>
+        )}
+      </main>
     </div>
   );
 };
+
+export default App;
