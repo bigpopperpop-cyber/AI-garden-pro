@@ -1,163 +1,37 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
 
-/**
- * Safely parses JSON from a string that might contain markdown backticks.
- */
-const safeParseAIJson = (text: string) => {
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize the Google GenAI SDK with the API key from environment variables.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+export const getExpertAdvice = async (query: string) => {
   try {
-    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("AI JSON Parsing Error:", e);
-    return null;
-  }
-};
-
-/**
- * Expert troubleshooting for plant health.
- */
-export const troubleshootPlant = async (description: string, imageBase64?: string) => {
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const model = 'gemini-3-pro-preview';
-
-    let contents;
-    if (imageBase64) {
-      contents = {
-        parts: [
-          { text: `Professional Botanist Diagnosis Task: ${description}` },
-          { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }
-        ]
-      };
-    } else {
-      contents = { 
-        parts: [{ text: `Professional Botanist Diagnosis Task: ${description}` }] 
-      };
-    }
-
+    // Use gemini-3-flash-preview for basic text tasks like simple Q&A.
     const response = await ai.models.generateContent({
-      model,
-      contents,
+      model: 'gemini-3-flash-preview',
+      contents: `You are a friendly hydroponic assistant for beginners. Answer the following question concisely and simply: ${query}`,
       config: {
-        systemInstruction: "You are a senior botanist. Return a professional Markdown report with sections: Diagnosis, Remediation, and Prevention.",
+        systemInstruction: "Keep answers under 150 words. Use bullet points for steps.",
         temperature: 0.7,
       }
     });
-    return response.text || "No diagnosis could be generated.";
+    // Access response.text as a property.
+    return response.text || "I'm sorry, I couldn't find an answer for that right now.";
   } catch (error) {
-    console.error("troubleshootPlant Error:", error);
-    return "The AI consultant is currently offline. Please try again shortly.";
+    console.error("AI Error:", error);
+    return "The AI expert is currently resting. Please try again later.";
   }
 };
 
-/**
- * Basic growing guides enhanced with Google Search for real-time data.
- */
-export const getGrowGuide = async (topic: string) => {
+export const getDailyGrowerTip = async () => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const model = 'gemini-3-flash-preview';
+    // Use gemini-3-flash-preview for a quick one-sentence tip.
     const response = await ai.models.generateContent({
-      model,
-      contents: { parts: [{ text: `Provide a detailed beginner guide for '${topic}' in an indoor hydroponic context. Include current market considerations for hardware.` }] },
-      config: {
-        tools: [{ googleSearch: {} }]
-      }
+      model: 'gemini-3-flash-preview',
+      contents: "Give a one-sentence beginner tip for hydroponic or outdoor gardening.",
     });
-    
-    let text = response.text || "Guide content unavailable.";
-    
-    // Extract grounding URLs if available
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    if (chunks && chunks.length > 0) {
-      text += "\n\n### Current Market Sources:\n";
-      chunks.forEach((chunk: any) => {
-        if (chunk.web?.uri) {
-          text += `- [${chunk.web.title || 'Market Link'}](${chunk.web.uri})\n`;
-        }
-      });
-    }
-    
-    return text;
+    return response.text?.trim() || "Check your water levels daily!";
   } catch (error) {
-    return "Error connecting to guide database.";
+    return "Proper pH is the key to healthy plant growth.";
   }
-};
-
-/**
- * Estimates growth milestones for plant forecasting.
- */
-export const getPlantProjections = async (plantName: string, variety: string, systemType: string) => {
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const model = 'gemini-3-flash-preview';
-    
-    const varietyStr = variety ? `(variety: ${variety})` : "";
-    const prompt = `Calculate typical growth milestones for: ${plantName} ${varietyStr} in a ${systemType} system.
-    Return ONLY JSON: {"daysToGerminate": int, "daysToFlower": int, "daysToHarvest": int}`;
-
-    const response = await ai.models.generateContent({
-      model,
-      contents: { parts: [{ text: prompt }] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            daysToGerminate: { type: Type.INTEGER },
-            daysToFlower: { type: Type.INTEGER },
-            daysToHarvest: { type: Type.INTEGER },
-          },
-          required: ["daysToGerminate", "daysToFlower", "daysToHarvest"]
-        }
-      }
-    });
-    
-    const data = safeParseAIJson(response.text);
-    if (!data) throw new Error("Invalid AI format");
-
-    return {
-      daysToGerminate: data.daysToGerminate || 7,
-      daysToFlower: data.daysToFlower || 30,
-      daysToHarvest: data.daysToHarvest || 60
-    };
-  } catch (error) {
-    console.error("Projections error:", error);
-    return null;
-  }
-};
-
-/**
- * One-sentence expert daily tip.
- */
-export const getDailyTip = async () => {
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const model = 'gemini-3-flash-preview';
-    const response = await ai.models.generateContent({
-      model,
-      contents: { parts: [{ text: "One sentence of expert advice for a beginner indoor hydroponic grower." }] },
-    });
-    return response.text?.trim() || "Clean your reservoir every 2 weeks!";
-  } catch (error) {
-    return "Maintain water temps between 18-22°C for optimal root health.";
-  }
-};
-
-/**
- * Live API connection for the hands-free botanist.
- */
-export const connectLiveBotanist = (callbacks: any) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-  return ai.live.connect({
-    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-    callbacks,
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
-      },
-      systemInstruction: 'You are an expert indoor hydroponic and aquaponic consultant. You are helping a user hands-free. Keep responses concise and practical.',
-    },
-  });
 };

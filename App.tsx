@@ -1,349 +1,579 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
-  Layers, 
   Sprout, 
-  Wrench, 
-  Calendar, 
   Stethoscope, 
+  Settings, 
   Plus, 
-  Menu, 
-  X,
-  ChevronRight,
-  ChevronLeft,
-  FlaskConical,
+  Bell, 
+  X, 
+  MessageSquare,
+  Leaf,
+  Calendar,
   Trash2,
-  Edit2,
-  Zap,
-  Settings,
-  BookOpen,
-  Download,
-  Upload,
-  BarChart3,
-  Scale,
-  Sparkles,
-  Camera,
-  Phone,
-  Mic,
-  MicOff,
-  Waves
+  Clock,
+  Info,
+  ChevronRight,
+  Sun,
+  Home,
+  Pencil,
+  Sparkles
 } from 'lucide-react';
-import { 
-  ViewState, Setup, Plant, Equipment, Ingredient, Task, HarvestRecord, WaterLog 
-} from './types.ts';
-import { troubleshootPlant, getDailyTip, getGrowGuide, getPlantProjections, connectLiveBotanist } from './services/geminiService.ts';
+import { ViewState, Garden, GardenNote, Notification, GardenType, Plant } from './types.ts';
+import { getExpertAdvice, getDailyGrowerTip } from './services/geminiService.ts';
 
-// --- Encoding/Decoding Helpers for Live API ---
-function encode(bytes: Uint8Array) {
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-function decode(base64: string) {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-  return bytes;
-}
-async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-  }
-  return buffer;
-}
+// --- Shared UI Components ---
 
-// --- UI Components ---
+const Card = ({ children, className = "" }: { children?: React.ReactNode, className?: string }) => (
+  <div className={`bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 ${className}`}>
+    {children}
+  </div>
+);
 
-const HealthGauge = ({ label, value, min, max, unit, color }: { label: string, value: number, min: number, max: number, unit: string, color: string }) => {
-  const percentage = Math.min(100, Math.max(0, ((value - (min - 1)) / (max - (min - 1))) * 100));
-  const isSafe = value >= min && value <= max;
-  return (
-    <div className="flex-1 min-w-[100px]">
-      <div className="flex justify-between items-end mb-2">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-        <span className={`text-sm font-black ${isSafe ? 'text-slate-800' : 'text-rose-500'}`}>{value}{unit}</span>
-      </div>
-      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-        <div 
-          className={`h-full transition-all duration-500 rounded-full ${isSafe ? color : 'bg-rose-400'}`} 
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  );
-};
-
-const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
-  const base = "px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ";
+const Button = ({ children, onClick, variant = 'primary', className = "", type = "button", disabled = false }: any) => {
   const variants: any = {
-    primary: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 disabled:bg-emerald-300",
-    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:bg-slate-50",
-    outline: "bg-transparent border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
-    dark: "bg-slate-900 text-white hover:bg-slate-800",
-    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
-    accent: "bg-amber-400 text-slate-900 hover:bg-amber-500 shadow-lg shadow-amber-200"
+    primary: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-100 disabled:opacity-50",
+    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+    outline: "border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
+    danger: "bg-rose-50 text-rose-600 hover:bg-rose-100"
   };
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={base + variants[variant] + " " + className}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ${variants[variant]} ${className}`}>
       {children}
     </button>
   );
 };
 
-const SidebarItem = ({ id, icon: Icon, label, active, onClick }: { id: ViewState, icon: any, label: string, active: boolean, onClick: () => void }) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-      active 
-        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
-        : 'text-slate-600 hover:bg-slate-100 font-medium'
-    }`}
-  >
-    <Icon size={20} />
-    <span className="truncate">{label}</span>
-  </button>
-);
+// --- View Components ---
 
-const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children?: React.ReactNode }) => {
-  if (!isOpen) return null;
+const DashboardView = ({ gardens, notifications, setView }: any) => {
+  const [tip, setTip] = useState("Loading your daily tip...");
+  
+  useEffect(() => {
+    getDailyGrowerTip().then(setTip);
+  }, []);
+
+  const totalPlants = gardens.reduce((acc: number, g: Garden) => acc + g.plants.length, 0);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-xl font-bold text-slate-800">{title}</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-            <X size={20} />
-          </button>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="bg-emerald-600 p-10 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
+        <Leaf className="absolute -bottom-6 -right-6 w-32 h-32 text-emerald-500/20 rotate-12" />
+        <h2 className="text-3xl font-black mb-2 tracking-tight">Welcome, Grower!</h2>
+        <p className="text-emerald-50/90 font-medium italic text-lg">"{tip}"</p>
+        
+        <div className="flex gap-4 mt-8">
+          <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl">
+            <p className="text-[10px] font-black uppercase text-emerald-200">Active Gardens</p>
+            <p className="text-xl font-black">{gardens.length}</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl">
+            <p className="text-[10px] font-black uppercase text-emerald-200">Total Plants</p>
+            <p className="text-xl font-black">{totalPlants}</p>
+          </div>
         </div>
-        <div className="p-6 overflow-y-auto max-h-[80vh]">{children}</div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Card>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-black text-slate-800">Recent Gardens</h3>
+            <button onClick={() => setView('gardens')} className="text-emerald-600 text-xs font-black uppercase hover:underline">View All</button>
+          </div>
+          <div className="space-y-4">
+            {gardens.slice(0, 3).map((g: Garden) => (
+              <div key={g.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                    {g.type === 'Indoor' ? <Home size={18} /> : <Sun size={18} />}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">{g.name}</p>
+                    <p className="text-[10px] text-slate-400 font-black uppercase">{g.plants.length} Plants</p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-slate-300" />
+              </div>
+            ))}
+            {gardens.length === 0 && <p className="text-slate-400 text-center py-6">No gardens yet. Start one today!</p>}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-black text-slate-800">Alerts & Tips</h3>
+            <Bell size={18} className="text-slate-300" />
+          </div>
+          <div className="space-y-4">
+            {notifications.filter((n: any) => !n.read).slice(0, 3).map((n: Notification) => (
+              <div key={n.id} className="flex items-start space-x-3 p-4 border-l-4 border-emerald-500 bg-emerald-50/30 rounded-r-2xl">
+                <Clock size={16} className="text-emerald-600 mt-1 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{n.title}</p>
+                  <p className="text-xs text-slate-500">{n.message}</p>
+                </div>
+              </div>
+            ))}
+            {notifications.length === 0 && <p className="text-slate-400 text-center py-6 italic">You're all caught up!</p>}
+          </div>
+        </Card>
       </div>
     </div>
   );
 };
 
-const Card = ({ children, title, action, className = "" }: any) => (
-  <div className={`bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col ${className}`}>
-    {(title || action) && (
-      <div className="flex justify-between items-center mb-8">
-        {title && <h3 className="text-xl font-black text-slate-800 tracking-tight">{title}</h3>}
-        {action}
-      </div>
-    )}
-    <div className="flex-1">{children}</div>
-  </div>
-);
-
-// --- Main App Component ---
+// --- Main App ---
 
 export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [dailyTip, setDailyTipStr] = useState<string>("Loading your daily grower tip...");
-  const [setups, setSetups] = useState<Setup[]>([]);
-  const [plants, setPlants] = useState<Plant[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [gardens, setGardens] = useState<Garden[]>([]);
+  const [notifications] = useState<Notification[]>([
+    { id: '1', title: 'pH Check Reminder', message: 'It has been 3 days since your last pH check.', date: new Date().toISOString(), read: false, type: 'maintenance' },
+    { id: '2', title: 'Nutrient Tip', message: 'Lettuce grows best with a cooler water temperature.', date: new Date().toISOString(), read: false, type: 'tip' }
+  ]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<any>(null);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  
-  // Live API State
-  const [isLiveActive, setIsLiveActive] = useState(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const liveSessionRef = useRef<any>(null);
-  const nextStartTimeRef = useRef(0);
-  const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
+  const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
+  const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
+  const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
+  const [editingPlant, setEditingPlant] = useState<{plant: Plant, gardenId: string} | null>(null);
+
+  // AI Troubleshoot state
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   useEffect(() => {
-    const s = localStorage.getItem('hydro_setups');
-    const p = localStorage.getItem('hydro_plants');
-    if (s) setSetups(JSON.parse(s));
-    if (p) setPlants(JSON.parse(p));
-    getDailyTip().then(setDailyTipStr).catch(() => {});
+    const saved = localStorage.getItem('hydro_gardens_final');
+    if (saved) setGardens(JSON.parse(saved));
   }, []);
 
-  const handleLiveToggle = async () => {
-    if (isLiveActive) {
-      liveSessionRef.current?.close();
-      setIsLiveActive(false);
-      return;
+  useEffect(() => {
+    localStorage.setItem('hydro_gardens_final', JSON.stringify(gardens));
+  }, [gardens]);
+
+  const selectedGarden = gardens.find(g => g.id === selectedGardenId);
+
+  const saveGarden = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const name = (f.elements.namedItem('gname') as HTMLInputElement).value;
+    const type = (f.elements.namedItem('gtype') as HTMLInputElement).value as GardenType;
+    const startedDate = (f.elements.namedItem('gdate') as HTMLInputElement).value;
+    const description = (f.elements.namedItem('gdesc') as HTMLTextAreaElement).value;
+
+    if (editingGarden) {
+      setGardens(gardens.map(g => g.id === editingGarden.id ? {
+        ...g, name, type, startedDate, description
+      } : g));
+    } else {
+      const newG: Garden = {
+        id: Date.now().toString(),
+        name, type, startedDate, description,
+        plants: [],
+        notes: []
+      };
+      setGardens([...gardens, newG]);
     }
+    setIsModalOpen(false);
+    setEditingGarden(null);
+  };
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      audioContextRef.current = outputCtx;
+  const savePlant = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedGardenId && !editingPlant) return;
+    const f = e.currentTarget;
+    const targetGardenId = editingPlant ? editingPlant.gardenId : selectedGardenId!;
+    const name = (f.elements.namedItem('pname') as HTMLInputElement).value;
+    const variety = (f.elements.namedItem('pvariety') as HTMLInputElement).value;
+    const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
 
-      const sessionPromise = connectLiveBotanist({
-        onopen: () => {
-          const source = inputCtx.createMediaStreamSource(stream);
-          const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-          processor.onaudioprocess = (e) => {
-            const inputData = e.inputBuffer.getChannelData(0);
-            const int16 = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
-            sessionPromise.then(session => session.sendRealtimeInput({
-              media: { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' }
-            }));
-          };
-          source.connect(processor);
-          processor.connect(inputCtx.destination);
-          setIsLiveActive(true);
-        },
-        onmessage: async (msg: any) => {
-          const b64 = msg.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-          if (b64 && audioContextRef.current) {
-            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, audioContextRef.current.currentTime);
-            const buf = await decodeAudioData(decode(b64), audioContextRef.current, 24000, 1);
-            const s = audioContextRef.current.createBufferSource();
-            s.buffer = buf;
-            s.connect(audioContextRef.current.destination);
-            s.start(nextStartTimeRef.current);
-            nextStartTimeRef.current += buf.duration;
-            sourcesRef.current.add(s);
-          }
-          if (msg.serverContent?.interrupted) {
-            sourcesRef.current.forEach(s => s.stop());
-            sourcesRef.current.clear();
-            nextStartTimeRef.current = 0;
-          }
-        }
-      });
-      liveSessionRef.current = await sessionPromise;
-    } catch (e) {
-      alert("Microphone access is required for Live Botanist.");
+    if (editingPlant) {
+      setGardens(gardens.map(g => g.id === targetGardenId ? {
+        ...g,
+        plants: g.plants.map(p => p.id === editingPlant.plant.id ? { ...p, name, variety, plantedDate } : p)
+      } : g));
+    } else {
+      const newPlant: Plant = {
+        id: Date.now().toString(),
+        name, variety, plantedDate
+      };
+      setGardens(gardens.map(g => g.id === targetGardenId ? {
+        ...g,
+        plants: [...g.plants, newPlant]
+      } : g));
+    }
+    setIsPlantModalOpen(false);
+    setEditingPlant(null);
+    f.reset();
+  };
+
+  const addNote = (content: string) => {
+    if (!selectedGardenId) return;
+    setGardens(gardens.map(g => g.id === selectedGardenId ? {
+      ...g,
+      notes: [{ id: Date.now().toString(), date: new Date().toLocaleDateString(), content }, ...g.notes]
+    } : g));
+  };
+
+  const deleteGarden = (id: string) => {
+    if(confirm("Permanently delete this garden and all its data?")) {
+      setGardens(gardens.filter(g => g.id !== id));
+      setSelectedGardenId(null);
     }
   };
 
-  const changeView = (v: ViewState) => {
-    setView(v);
-    setIsSidebarOpen(false);
+  const deletePlant = (gardenId: string, plantId: string) => {
+    if(confirm("Remove this plant from your records?")) {
+      setGardens(gardens.map(g => g.id === gardenId ? {
+        ...g,
+        plants: g.plants.filter(p => p.id !== plantId)
+      } : g));
+    }
+  };
+
+  const handleAiTroubleshoot = async () => {
+    if(!aiQuery) return;
+    setIsAiLoading(true);
+    const advice = await getExpertAdvice(aiQuery);
+    setAiResponse(advice);
+    setIsAiLoading(false);
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans relative">
-      {/* Mobile Backdrop */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-slate-200 flex flex-col p-6 space-y-8 z-50 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Sprout size={24} /></div>
-            <span className="text-2xl font-black text-emerald-600">HydroMaster</span>
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
+      {/* Sidebar Navigation */}
+      <nav className="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col p-4 md:p-6 space-y-8 z-50 transition-all shadow-sm">
+        <div className="flex items-center space-x-3 px-2">
+          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0">
+            <Sprout size={24} />
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400"><X size={24} /></button>
+          <span className="text-xl font-black text-emerald-600 hidden md:block">HydroHelper</span>
         </div>
-        <nav className="flex-1 space-y-2 overflow-y-auto pr-2">
-          <SidebarItem id="dashboard" icon={LayoutDashboard} label="Dashboard" active={view === 'dashboard'} onClick={() => changeView('dashboard')} />
-          <SidebarItem id="setups" icon={Layers} label="Systems" active={view === 'setups'} onClick={() => changeView('setups')} />
-          <SidebarItem id="plants" icon={Sprout} label="My Plants" active={view === 'plants'} onClick={() => changeView('plants')} />
-          <SidebarItem id="troubleshoot" icon={Stethoscope} label="AI Diagnosis" active={view === 'troubleshoot'} onClick={() => changeView('troubleshoot')} />
-          <SidebarItem id="guide" icon={BookOpen} label="Growing Guide" active={view === 'guide'} onClick={() => changeView('guide')} />
-        </nav>
-        <div className="pt-6 border-t border-slate-100">
-          <SidebarItem id="settings" icon={Settings} label="Settings" active={view === 'settings'} onClick={() => changeView('settings')} />
-        </div>
-      </aside>
 
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50 relative">
-        <header className="flex flex-col lg:flex-row lg:items-center justify-between mb-12 space-y-6 lg:space-y-0">
-          <div className="flex items-center space-x-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-3 bg-white rounded-xl border border-slate-200"><Menu size={20} /></button>
-            <div>
-              <h1 className="text-4xl font-black text-slate-800 capitalize tracking-tight">{view}</h1>
-              <p className="text-slate-500 mt-1 italic font-medium hidden md:block">"{dailyTip}"</p>
-            </div>
+        <div className="flex-1 space-y-2">
+          <button onClick={() => {setView('dashboard'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'dashboard' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+            <LayoutDashboard size={20} />
+            <span className="font-bold hidden md:block">Dashboard</span>
+          </button>
+          <button onClick={() => {setView('gardens'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'gardens' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+            <Leaf size={20} />
+            <span className="font-bold hidden md:block">Gardens</span>
+          </button>
+          <button onClick={() => {setView('troubleshoot'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'troubleshoot' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+            <Stethoscope size={20} />
+            <span className="font-bold hidden md:block">AI Expert</span>
+          </button>
+        </div>
+
+        <button onClick={() => {setView('settings'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'settings' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <Settings size={20} />
+          <span className="font-bold hidden md:block">Settings</span>
+        </button>
+      </nav>
+
+      <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-32">
+        <header className="flex justify-between items-center mb-10">
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">
+              {selectedGarden ? selectedGarden.name : view}
+            </h1>
+            <p className="text-slate-400 text-sm font-medium">Simplify your growing journey.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button onClick={handleLiveToggle} variant={isLiveActive ? 'danger' : 'outline'} className={`shadow-xl ${isLiveActive ? 'animate-pulse' : ''}`}>
-              {isLiveActive ? <Phone size={18} /> : <Mic size={18} />}
-              <span>{isLiveActive ? 'End Call' : 'Expert Hotline'}</span>
+          {view === 'gardens' && !selectedGarden && (
+            <Button onClick={() => { setEditingGarden(null); setIsModalOpen(true); }}>
+              <Plus size={20} />
+              <span className="hidden md:inline">Add Garden</span>
             </Button>
-            <Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}><Plus size={20} /><span>New Plant</span></Button>
-          </div>
+          )}
         </header>
 
-        {view === 'dashboard' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
-            <div className="lg:col-span-2 space-y-8">
-              <Card title="System Vitality">
-                <div className="space-y-6">
-                  {setups.map(s => {
-                    const latest = s.waterLogs?.[s.waterLogs.length-1];
-                    return (
-                      <div key={s.id} className="p-8 bg-slate-50/50 rounded-[2rem] border border-slate-100 group hover:border-emerald-200 transition-all">
-                        <div className="flex justify-between items-start mb-8">
-                           <div>
-                             <h4 className="text-xl font-bold text-slate-800">{s.name}</h4>
-                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{s.type} • {s.location}</p>
-                           </div>
-                           <Button variant="secondary" className="text-xs" onClick={() => { setSelectedItem(s); setModalType('water'); setIsModalOpen(true); }}>Log Lab</Button>
-                        </div>
-                        <div className="flex flex-wrap gap-8">
-                           <HealthGauge label="pH" value={latest?.ph || 6.0} min={5.5} max={6.5} unit="" color="bg-blue-500" />
-                           <HealthGauge label="EC" value={latest?.ec || 1.2} min={0.8} max={2.2} unit=" mS" color="bg-amber-500" />
-                           <HealthGauge label="Temp" value={latest?.temp || 22} min={18} max={24} unit="°C" color="bg-emerald-500" />
-                        </div>
+        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} />}
+
+        {view === 'gardens' && !selectedGarden && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
+            {gardens.map(g => (
+              <div key={g.id} className="relative group">
+                <button onClick={() => setSelectedGardenId(g.id)} className="w-full text-left group outline-none h-full">
+                  <Card className="hover:border-emerald-200 transition-all hover:translate-y-[-4px] h-full flex flex-col">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                        {g.type === 'Indoor' ? <Home size={24} /> : <Sun size={24} />}
                       </div>
-                    );
-                  })}
-                  {setups.length === 0 && <div className="text-center py-20 text-slate-300 italic font-bold">Register your first system to begin tracking.</div>}
-                </div>
-              </Card>
+                      <span className="bg-slate-50 text-slate-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                        {g.plants.length} Plants
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-1">{g.name}</h3>
+                    <p className="text-xs text-slate-400 font-black uppercase tracking-widest mb-4">{g.type} Environment</p>
+                    <p className="text-sm text-slate-500 line-clamp-2">{g.description || "No description set."}</p>
+                  </Card>
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setEditingGarden(g); setIsModalOpen(true); }}
+                  className="absolute bottom-6 right-6 p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Pencil size={16} />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => { setEditingGarden(null); setIsModalOpen(true); }} className="border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 text-slate-300 hover:border-emerald-100 hover:text-emerald-300 transition-all outline-none">
+              <Plus size={40} className="mb-2" />
+              <span className="font-black uppercase tracking-widest text-xs">New Garden</span>
+            </button>
+          </div>
+        )}
+
+        {selectedGarden && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center">
+              <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold">
+                <ChevronLeft size={20} className="mr-1" /> Back to Gardens
+              </button>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => { setEditingGarden(selectedGarden); setIsModalOpen(true); }}>
+                   <Pencil size={18}/>
+                </Button>
+                <Button variant="danger" onClick={() => deleteGarden(selectedGarden.id)}>
+                   <Trash2 size={18}/>
+                </Button>
+              </div>
             </div>
             
-            <div className="space-y-8">
-              <div className="bg-slate-900 p-10 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
-                <Waves className="absolute -bottom-10 -right-10 w-48 h-48 text-emerald-500/10 group-hover:scale-110 transition-transform" />
-                <h3 className="text-2xl font-black mb-4 relative z-10 flex items-center gap-2"><Sparkles className="text-emerald-400" /> AI Insights</h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-8 relative z-10">Gemini is analyzing your pH levels. You are currently in the optimal range for Leafy Greens.</p>
-                <Button variant="primary" className="w-full" onClick={() => setView('plants')}>View Growth Projections</Button>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-8">
+                {/* Plant Tracking */}
+                <Card>
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xl font-black text-slate-800">Plant Directory</h3>
+                    <Button onClick={() => { setEditingPlant(null); setIsPlantModalOpen(true); }} variant="outline" className="text-xs py-1.5 px-3">
+                      <Plus size={16} /> <span>New Plant</span>
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {selectedGarden.plants.map(p => (
+                      <div key={p.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl group hover:shadow-sm transition-all">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                             <Sprout size={20} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800">{p.name}</p>
+                            <p className="text-xs text-slate-400">{p.variety || 'Heirloom'} • Planted {p.plantedDate}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <button onClick={() => { setEditingPlant({ plant: p, gardenId: selectedGarden.id }); setIsPlantModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600">
+                            <Pencil size={16} />
+                          </button>
+                          <button onClick={() => deletePlant(selectedGarden.id, p.id)} className="p-2 text-slate-300 hover:text-rose-500">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedGarden.plants.length === 0 && (
+                      <div className="text-center py-10 opacity-30">
+                        <p className="font-bold">No plants logged yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Journal */}
+                <Card>
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xl font-black text-slate-800">Garden Journal</h3>
+                    <MessageSquare size={20} className="text-slate-300" />
+                  </div>
+                  <form onSubmit={e => {
+                    e.preventDefault();
+                    const input = (e.currentTarget.elements.namedItem('notecontent') as HTMLInputElement);
+                    addNote(input.value);
+                    input.value = '';
+                  }} className="mb-8">
+                    <div className="flex space-x-2">
+                      <input name="notecontent" placeholder="Log an observation (e.g. pH adjusted to 6.0)..." className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-100 outline-none focus:border-emerald-500" required />
+                      <Button type="submit">Post</Button>
+                    </div>
+                  </form>
+                  <div className="space-y-6">
+                    {selectedGarden.notes.map(note => (
+                      <div key={note.id} className="p-5 bg-slate-50 rounded-[1.5rem] relative">
+                        <span className="text-[10px] font-black text-emerald-600 uppercase mb-2 block">{note.date}</span>
+                        <p className="text-slate-700 leading-relaxed">{note.content}</p>
+                      </div>
+                    ))}
+                    {selectedGarden.notes.length === 0 && (
+                      <div className="text-center py-10 opacity-30 italic">
+                        <p>No notes yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                 <Card className="bg-slate-900 text-white shadow-2xl">
+                    <h4 className="font-black mb-6 flex items-center gap-2"><Calendar size={18}/> Overview</h4>
+                    <div className="space-y-6">
+                       <div className="p-4 bg-white/5 rounded-2xl">
+                          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Establishment Date</p>
+                          <p className="font-bold text-lg">{selectedGarden.startedDate}</p>
+                       </div>
+                       <div className="p-4 bg-white/5 rounded-2xl">
+                          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Environment</p>
+                          <p className="font-bold text-lg flex items-center gap-2">
+                            {selectedGarden.type === 'Indoor' ? <Home size={16}/> : <Sun size={16}/>}
+                            {selectedGarden.type}
+                          </p>
+                       </div>
+                       <div className="p-4 bg-white/5 rounded-2xl">
+                          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Description</p>
+                          <p className="text-sm text-slate-300 leading-relaxed italic">"{selectedGarden.description || 'No description provided.'}"</p>
+                       </div>
+                    </div>
+                 </Card>
+
+                 <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-[2.5rem]">
+                    <h4 className="font-black text-emerald-800 mb-2">Need Help?</h4>
+                    <p className="text-sm text-emerald-700 mb-6 leading-relaxed">Describe any issues with this garden to our AI expert.</p>
+                    <Button variant="outline" className="w-full bg-white" onClick={() => setView('troubleshoot')}>Consult AI Assistant</Button>
+                 </div>
               </div>
             </div>
           </div>
         )}
 
         {view === 'troubleshoot' && (
-           <div className="max-w-4xl mx-auto py-10">
-              <Card title="Expert Diagnosis">
-                 <p className="text-slate-500 mb-8">Upload a photo of your plant's symptoms or describe the issues below.</p>
-                 <textarea className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:border-emerald-500 transition-all text-slate-700 resize-none mb-4" placeholder="Leaves are yellowing at the tips..."></textarea>
-                 <div className="flex gap-4">
-                    <button className="p-4 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200"><Camera size={24}/></button>
-                    <Button className="flex-1">Analyze Plant Health</Button>
+          <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
+             <div className="text-center space-y-4 mb-12">
+                <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-sm">
+                   <Stethoscope size={48} />
+                </div>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tight">Expert Plant Advice</h2>
+                <p className="text-slate-500 font-medium text-lg">Your AI-powered botanist is ready to help.</p>
+             </div>
+             <Card className="p-8">
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Describe the problem</label>
+                     <textarea 
+                        value={aiQuery} 
+                        onChange={e => setAiQuery(e.target.value)}
+                        placeholder="E.g. My indoor tomato plants have small yellow spots on the lower leaves. I check the pH weekly."
+                        className="w-full h-48 p-6 bg-slate-50 border border-slate-100 rounded-[2rem] outline-none focus:border-emerald-500 transition-all text-slate-700 resize-none leading-relaxed"
+                     />
+                  </div>
+                  <Button onClick={handleAiTroubleshoot} disabled={isAiLoading || !aiQuery} className="w-full py-5 text-xl shadow-lg">
+                    {isAiLoading ? (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Consulting Expert...</span>
+                      </div>
+                    ) : "Ask Botanist"}
+                  </Button>
+                </div>
+             </Card>
+             {aiResponse && (
+               <Card className="border-emerald-200 bg-white shadow-xl animate-in slide-in-from-bottom-8">
+                 <div className="flex items-center space-x-3 mb-6">
+                    <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg"><Sparkles size={20}/></div>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Diagnosis & Plan</h3>
                  </div>
-              </Card>
-           </div>
+                 <div className="prose prose-emerald text-slate-700 leading-relaxed whitespace-pre-wrap text-lg">
+                    {aiResponse}
+                 </div>
+               </Card>
+             )}
+          </div>
+        )}
+
+        {view === 'settings' && (
+          <div className="max-w-md mx-auto py-20">
+             <Card className="p-10 text-center">
+                <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                   <Settings size={40} className="text-slate-400" />
+                </div>
+                <h3 className="text-2xl font-black mb-4">Application Settings</h3>
+                <p className="text-slate-500 mb-10 text-sm">Manage your data and platform preferences.</p>
+                <div className="space-y-4">
+                   <Button variant="danger" className="w-full py-4" onClick={() => { if(confirm("Are you sure? This deletes ALL your garden data!")) { localStorage.clear(); window.location.reload(); } }}>
+                      <Trash2 size={18}/> <span>Wipe All Garden Data</span>
+                   </Button>
+                   <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.2.0 (Stable)</p>
+                </div>
+             </Card>
+          </div>
         )}
       </main>
 
-      {/* Live Overlay */}
-      {isLiveActive && (
-        <div className="fixed bottom-8 right-8 z-[110] bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-2xl border border-white/10 flex items-center gap-6 animate-in slide-in-from-right-10 duration-500">
-           <div className="flex gap-1 items-center h-8">
-              {[...Array(5)].map((_,i) => (
-                <div key={i} className="w-1.5 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.random()*100}%`, animationDelay: `${i*0.1}s` }} />
-              ))}
+      {/* Garden Modal (Add/Edit) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
+              <div className="flex justify-between items-center mb-10">
+                 <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingGarden ? 'Edit Garden' : 'New Garden'}</h3>
+                 <button onClick={() => { setIsModalOpen(false); setEditingGarden(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors"><X size={32}/></button>
+              </div>
+              <form onSubmit={saveGarden} className="space-y-6">
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Garden Name</label>
+                    <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. South Balcony" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
+                 </div>
+                 <div className="grid grid-cols-2 gap-6">
+                    <div>
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Environment</label>
+                       <select name="gtype" defaultValue={editingGarden?.type || 'Indoor'} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold">
+                          <option>Indoor</option>
+                          <option>Outdoor</option>
+                       </select>
+                    </div>
+                    <div>
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Start Date</label>
+                       <input name="gdate" type="date" defaultValue={editingGarden?.startedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold" />
+                    </div>
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Notes / Description</label>
+                    <textarea name="gdesc" defaultValue={editingGarden?.description} placeholder="Briefly describe this setup..." className="w-full h-28 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 resize-none transition-all" />
+                 </div>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">{editingGarden ? 'Update' : 'Initialize'} Garden</Button>
+              </form>
            </div>
-           <div>
-              <p className="text-[10px] font-black uppercase text-emerald-400">Live Botanist</p>
-              <p className="text-sm font-bold">Listening...</p>
-           </div>
-           <button onClick={handleLiveToggle} className="p-3 bg-rose-500 rounded-full hover:bg-rose-600 transition-colors"><X size={18}/></button>
         </div>
       )}
 
-      {/* Basic Modals preserved from original */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={(modalType || '').toUpperCase()}>
-         <p className="text-slate-500 text-center py-10 font-bold italic">Form initialization logic...</p>
-      </Modal>
+      {/* Plant Modal (Add/Edit) */}
+      {isPlantModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
+              <div className="flex justify-between items-center mb-10">
+                 <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingPlant ? 'Edit Plant' : 'Log New Plant'}</h3>
+                 <button onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors"><X size={32}/></button>
+              </div>
+              <form onSubmit={savePlant} className="space-y-6">
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Plant Name</label>
+                    <input name="pname" defaultValue={editingPlant?.plant.name} placeholder="E.g. Basil" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Variety</label>
+                    <input name="pvariety" defaultValue={editingPlant?.plant.variety} placeholder="E.g. Genovese" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Planted Date</label>
+                    <input name="pdate" type="date" defaultValue={editingPlant?.plant.plantedDate || new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold" />
+                 </div>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">{editingPlant ? 'Save Changes' : 'Add to Garden'}</Button>
+              </form>
+           </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// Utility Icons
+const ChevronLeft = ({ size, className }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6"/></svg>;
