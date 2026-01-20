@@ -8,6 +8,7 @@ import {
   Stethoscope, 
   Plus, 
   X,
+  Menu,
   ChevronRight,
   ChevronLeft,
   Search,
@@ -253,6 +254,7 @@ const TroubleshootView = () => {
 
 export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [dailyTip, setDailyTipStr] = useState<string>("Loading your daily grower tip...");
   const [setups, setSetups] = useState<Setup[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
@@ -262,6 +264,8 @@ export default function App() {
   const [modalType, setModalType] = useState<'setup' | 'plant' | 'water' | 'harvest' | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isPredicting, setIsPredicting] = useState(false);
+  
+  const plantFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     const s = localStorage.getItem('hydro_setups');
@@ -269,22 +273,24 @@ export default function App() {
     getDailyTip().then(setDailyTipStr).catch(() => {});
   }, []);
 
-  const handlePredict = async (form: any) => {
-    const name = form.pname?.value;
+  const handlePredict = async () => {
+    if (!plantFormRef.current) return;
+    const name = plantFormRef.current.pname?.value;
     if (!name) return alert("Enter species name.");
+    
     setIsPredicting(true);
     try {
       const proj = await getPlantProjections(name, "", "Hydroponic");
-      if (proj) {
+      if (proj && plantFormRef.current) {
         const base = new Date();
         const addD = (d: number) => {
           const date = new Date(base);
           date.setDate(date.getDate() + d);
           return date.toISOString().split('T')[0];
         };
-        form.pgerm_proj.value = addD(proj.daysToGerminate);
-        form.pflow_proj.value = addD(proj.daysToFlower);
-        form.phrv_proj.value = addD(proj.daysToHarvest);
+        plantFormRef.current.pgerm_proj.value = addD(proj.daysToGerminate);
+        plantFormRef.current.pflow_proj.value = addD(proj.daysToFlower);
+        plantFormRef.current.phrv_proj.value = addD(proj.daysToHarvest);
       } else {
         alert("AI could not determine milestones for this species.");
       }
@@ -295,29 +301,67 @@ export default function App() {
     }
   };
 
+  const changeView = (v: ViewState) => {
+    setView(v);
+    setIsSidebarOpen(false);
+  };
+
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
-      <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-6 space-y-8 shrink-0">
-        <div className="flex items-center space-x-3 px-2">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Sprout size={24} /></div>
-          <span className="text-2xl font-black text-emerald-600">HydroMaster</span>
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans relative">
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-opacity animate-in fade-in"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 w-72 bg-white border-r border-slate-200 flex flex-col p-6 space-y-8 z-50 shrink-0
+        transition-transform duration-300 ease-in-out lg:translate-x-0
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="flex items-center justify-between lg:justify-start lg:space-x-3 px-2">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Sprout size={24} /></div>
+            <span className="text-2xl font-black text-emerald-600">HydroMaster</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-slate-600">
+            <X size={24} />
+          </button>
         </div>
-        <nav className="flex-1 space-y-2 overflow-y-auto">
-          <SidebarItem id="dashboard" icon={LayoutDashboard} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
-          <SidebarItem id="setups" icon={Layers} label="Systems" active={view === 'setups'} onClick={() => setView('setups')} />
-          <SidebarItem id="plants" icon={Sprout} label="My Plants" active={view === 'plants'} onClick={() => setView('plants')} />
-          <SidebarItem id="troubleshoot" icon={Stethoscope} label="AI Diagnosis" active={view === 'troubleshoot'} onClick={() => setView('troubleshoot')} />
-          <SidebarItem id="guide" icon={BookOpen} label="Growing Guide" active={view === 'guide'} onClick={() => setView('guide')} />
+        <nav className="flex-1 space-y-2 overflow-y-auto pr-2">
+          <SidebarItem id="dashboard" icon={LayoutDashboard} label="Dashboard" active={view === 'dashboard'} onClick={() => changeView('dashboard')} />
+          <SidebarItem id="setups" icon={Layers} label="Systems" active={view === 'setups'} onClick={() => changeView('setups')} />
+          <SidebarItem id="plants" icon={Sprout} label="My Plants" active={view === 'plants'} onClick={() => changeView('plants')} />
+          <SidebarItem id="troubleshoot" icon={Stethoscope} label="AI Diagnosis" active={view === 'troubleshoot'} onClick={() => changeView('troubleshoot')} />
+          <SidebarItem id="guide" icon={BookOpen} label="Growing Guide" active={view === 'guide'} onClick={() => changeView('guide')} />
         </nav>
+        <div className="pt-6 border-t border-slate-100">
+          <SidebarItem id="settings" icon={Settings} label="Settings" active={view === 'settings'} onClick={() => changeView('settings')} />
+        </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-10 bg-slate-50">
-        <header className="flex justify-between items-center mb-10">
-          <div>
-            <h1 className="text-4xl font-black text-slate-800 capitalize tracking-tight">{view}</h1>
-            <p className="text-slate-500 mt-1 italic font-medium">"{dailyTip}"</p>
+      <main className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50">
+        <header className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0 mb-10">
+          <div className="flex items-center space-x-4 lg:space-x-0">
+            {/* Mobile Toggle Button */}
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-3 bg-white rounded-xl border border-slate-200 text-slate-600 shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <h1 className="text-3xl lg:text-4xl font-black text-slate-800 capitalize tracking-tight">{view}</h1>
+              <p className="hidden lg:block text-slate-500 mt-1 italic font-medium">"{dailyTip}"</p>
+            </div>
           </div>
-          <Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }}><Plus size={20} /><span>New Plant</span></Button>
+          <Button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }} className="w-full lg:w-auto shadow-emerald-100">
+            <Plus size={20} />
+            <span>New Plant</span>
+          </Button>
         </header>
 
         {view === 'dashboard' && (
@@ -331,13 +375,24 @@ export default function App() {
                       <Button variant="outline" className="text-xs" onClick={() => { setSelectedItem(s); setModalType('water'); setIsModalOpen(true); }}>Log Lab</Button>
                     </div>
                   ))}
-                  {setups.length === 0 && <p className="text-center py-10 text-slate-300 italic">No systems registered yet.</p>}
+                  {setups.length === 0 && (
+                    <div className="text-center py-20 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                       <Layers size={40} className="mx-auto text-slate-200 mb-4" />
+                       <p className="text-slate-300 font-bold">No active systems yet.</p>
+                    </div>
+                  )}
                 </div>
               </Card>
             </div>
-            <div className="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 flex flex-col justify-between">
-              <div><h3 className="text-xl font-black mb-4">AI Projections</h3><p className="text-emerald-50 text-sm">Automated harvest dates powered by Gemini AI.</p></div>
-              <Button variant="secondary" className="w-full bg-white text-emerald-600 mt-6" onClick={() => setView('plants')}>View Forecasts</Button>
+            <div className="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-200 flex flex-col justify-between relative overflow-hidden group">
+              <Sparkles className="absolute -top-6 -right-6 w-32 h-32 text-emerald-400 opacity-20" />
+              <div className="relative z-10">
+                <h3 className="text-xl font-black mb-4">AI Projections</h3>
+                <p className="text-emerald-50 text-sm leading-relaxed">Automated harvest dates powered by Gemini AI. See exactly when your crop is ready.</p>
+              </div>
+              <Button variant="secondary" className="w-full bg-white text-emerald-600 mt-6 relative z-10" onClick={() => setView('plants')}>
+                View Forecasts
+              </Button>
             </div>
           </div>
         )}
@@ -345,7 +400,9 @@ export default function App() {
         {view === 'plants' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
             {plants.map(p => (
-              <Card key={p.id} title={p.name}><PlantLifecycleTimeline plant={p} /></Card>
+              <Card key={p.id} title={p.name}>
+                <PlantLifecycleTimeline plant={p} />
+              </Card>
             ))}
             <button onClick={() => { setSelectedItem(null); setModalType('plant'); setIsModalOpen(true); }} className="h-64 border-4 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-300 hover:border-emerald-100 hover:text-emerald-200 transition-all group">
               <Plus size={32} className="group-hover:scale-110 transition-transform mb-2" />
@@ -356,14 +413,30 @@ export default function App() {
 
         {view === 'troubleshoot' && <TroubleshootView />}
         {view === 'guide' && <GuideView />}
+
+        {view === 'settings' && (
+           <div className="max-w-2xl mx-auto py-10">
+             <Card title="System Settings">
+                <div className="space-y-6">
+                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div><p className="font-bold">Backup Data</p><p className="text-xs text-slate-400">Save your progress to a JSON file.</p></div>
+                      <Button variant="outline" className="px-4"><Download size={18}/></Button>
+                   </div>
+                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div><p className="font-bold">Clear Local Storage</p><p className="text-xs text-slate-400">Wipe all local data and reset app.</p></div>
+                      <Button variant="danger" className="px-4" onClick={() => localStorage.clear()}><Trash2 size={18}/></Button>
+                   </div>
+                </div>
+             </Card>
+           </div>
+        )}
       </main>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={(modalType || '').toUpperCase()}>
         {modalType === 'plant' && (
-          <form className="space-y-4" onSubmit={e => { 
+          <form ref={plantFormRef} className="space-y-4" onSubmit={e => { 
             e.preventDefault(); 
             const f = e.currentTarget as any; 
-            // Fix: Adding missing properties (setupId, lastChecked, notes) to satisfy the Plant interface.
             const d: Plant = { 
               id: Date.now().toString(), 
               setupId: '', 
@@ -379,11 +452,12 @@ export default function App() {
               harvestRecords: [] 
             }; 
             setPlants([...plants, d]); 
+            localStorage.setItem('hydro_plants', JSON.stringify([...plants, d]));
             setIsModalOpen(false); 
           }}>
             <div className="flex gap-2">
               <input name="pname" placeholder="Species (e.g. Basil)" required className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none" />
-              <Button variant="accent" onClick={() => handlePredict(document.querySelector('form'))} disabled={isPredicting} className="p-4 rounded-2xl w-14 h-14 shrink-0">
+              <Button variant="accent" onClick={handlePredict} disabled={isPredicting} className="p-4 rounded-2xl w-14 h-14 shrink-0">
                 {isPredicting ? <div className="animate-spin h-5 w-5 border-2 border-slate-900 border-t-transparent rounded-full" /> : <Sparkles size={20} />}
               </Button>
             </div>
