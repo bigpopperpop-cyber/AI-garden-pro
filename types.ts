@@ -1,5 +1,14 @@
 export type SystemType = 'Hydroponic' | 'Aquaponic' | 'Aeroponic' | 'Kratky' | 'DWC' | 'NFT';
 
+export interface WaterLog {
+  id: string;
+  date: string;
+  ph: number;
+  ec: number; // PPM or mS/cm
+  temp: number; // Celsius or Fahrenheit
+  notes?: string;
+}
+
 export interface Setup {
   id: string;
   name: string;
@@ -9,6 +18,7 @@ export interface Setup {
   location: string;
   notes: string;
   cost?: number;
+  waterLogs: WaterLog[]; // New: Track water parameters
 }
 
 export interface HarvestRecord {
