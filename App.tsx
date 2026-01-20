@@ -11,6 +11,7 @@ import {
   Menu, 
   X,
   ChevronRight,
+  ChevronLeft,
   Search,
   FlaskConical,
   Droplets,
@@ -48,7 +49,6 @@ import { troubleshootPlant, getDailyTip, getGrowGuide, getPlantProjections, gene
 
 // --- Shared UI Components ---
 
-// Reusable button component with various style variants
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
   const base = "px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ";
   const variants: any = {
@@ -66,7 +66,6 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   );
 };
 
-// Modal dialog component for capturing inputs or showing details
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children?: React.ReactNode }) => {
   if (!isOpen) return null;
   return (
@@ -86,17 +85,165 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
   );
 };
 
-// Main application component containing routing logic and global state
+const Card = ({ children, title, action, className = "" }: any) => (
+  <div className={`bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col ${className}`}>
+    {(title || action) && (
+      <div className="flex justify-between items-center mb-6">
+        {title && <h3 className="text-lg font-semibold text-slate-800">{title}</h3>}
+        {action}
+      </div>
+    )}
+    <div className="flex-1">{children}</div>
+  </div>
+);
+
+// --- Guide View Component (Updated to hide menu on selection) ---
+
+const GuideView = () => {
+  const [guide, setGuide] = useState<string | null>(null);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [wizardMode, setWizardMode] = useState(false);
+
+  const fetchG = async (t: string) => { 
+    setActiveTopic(t);
+    setWizardMode(false);
+    setLoading(true); 
+    try { 
+      const res = await getGrowGuide(t); 
+      setGuide(res); 
+    } finally { 
+      setLoading(false); 
+    } 
+  };
+
+  const resetView = () => {
+    setGuide(null);
+    setActiveTopic(null);
+    setWizardMode(false);
+  };
+
+  const handleWizard = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const els = f.elements as any;
+    setLoading(true);
+    try {
+      const res = await generateStarterKit(els.budget.value, els.space.value, els.goal.value);
+      setGuide(res);
+      setWizardMode(false);
+      setActiveTopic("AI Starter Kit");
+    } finally { setLoading(false); }
+  };
+
+  // If a guide or the wizard is active, hide the main menu list
+  const showMenu = !guide && !wizardMode && !loading;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+      {/* Menu Area */}
+      {showMenu && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button 
+            onClick={() => setWizardMode(true)} 
+            className="col-span-full p-8 bg-emerald-600 text-white rounded-[2.5rem] shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex flex-col items-center text-center space-y-4 group"
+          >
+            <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Sparkles size={32}/>
+            </div>
+            <div>
+              <h3 className="text-2xl font-black">AI Starter Kit Wizard</h3>
+              <p className="text-emerald-50 text-sm font-medium opacity-80">Tell us your budget and space, we'll build your list.</p>
+            </div>
+          </button>
+
+          {['Kratky Method', 'Nutrient Mixing 101', 'pH Balance Guide', 'Lighting (PAR/PPFD)', 'DWC Setup', 'NFT Systems'].map(t => (
+            <button 
+              key={t} 
+              onClick={() => fetchG(t)} 
+              className="p-6 bg-white border border-slate-100 rounded-3xl font-bold hover:bg-emerald-50 hover:border-emerald-100 transition-all shadow-sm flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
+                  <BookOpen size={20} />
+                </div>
+                <span className="text-slate-700 group-hover:text-emerald-900">{t}</span>
+              </div>
+              <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-40 animate-pulse">
+          <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+          <p className="text-slate-500 font-bold">Consulting Grow Master AI...</p>
+        </div>
+      )}
+
+      {/* Content Area (Guide or Wizard) */}
+      {(guide || wizardMode) && !loading && (
+        <div className="space-y-6">
+          <button 
+            onClick={resetView} 
+            className="flex items-center space-x-2 text-slate-400 hover:text-emerald-600 font-bold transition-colors group"
+          >
+            <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            <span>Back to Wiki Menu</span>
+          </button>
+
+          {wizardMode ? (
+            <Card title="Starter Kit AI Wizard">
+              <form onSubmit={handleWizard} className="space-y-6">
+                 <p className="text-slate-500 font-medium">Customize your first indoor farm with professional AI advice.</p>
+                 <div className="space-y-4">
+                   <div>
+                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block">Total Budget ($)</label>
+                     <input name="budget" placeholder="e.g. $100" required className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-emerald-500 outline-none transition-all" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block">Available Space</label>
+                     <input name="space" placeholder="e.g. 2x2ft closet, Windowsill" required className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-emerald-500 outline-none transition-all" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block">What do you want to grow?</label>
+                     <input name="goal" placeholder="e.g. Basil and Spinach" required className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-emerald-500 outline-none transition-all" />
+                   </div>
+                 </div>
+                 <Button type="submit" className="w-full py-5 text-lg shadow-xl shadow-emerald-100">Generate Custom Plan</Button>
+              </form>
+            </Card>
+          ) : (
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="flex items-center space-x-4 mb-8">
+                 <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                    <BookOpen size={28} />
+                 </div>
+                 <h2 className="text-3xl font-black text-slate-800 tracking-tight">{activeTopic}</h2>
+              </div>
+              <div className="prose prose-emerald p-2 text-slate-600 leading-relaxed max-w-none whitespace-pre-wrap">
+                {guide}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Main App Component ---
+
 const App = () => {
   const [view, setView] = useState<ViewState>('dashboard');
   const [dailyTip, setDailyTipStr] = useState<string>("Loading your daily grower tip...");
 
-  // Effect to fetch a personalized tip from Gemini on initial load
   useEffect(() => {
     getDailyTip().then(setDailyTipStr).catch(() => setDailyTipStr("Maintain water temps between 18-22°C for optimal root health."));
   }, []);
 
-  // Helper component for navigation items
   const SidebarItem = ({ id, icon: Icon, label }: { id: ViewState, icon: any, label: string }) => (
     <button
       onClick={() => setView(id)}
@@ -113,7 +260,6 @@ const App = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
-      {/* Sidebar Navigation */}
       <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-6 space-y-8 shrink-0">
         <div className="flex items-center space-x-3 px-2">
           <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -138,7 +284,6 @@ const App = () => {
         </div>
       </aside>
 
-      {/* Main UI Area */}
       <main className="flex-1 overflow-y-auto p-10 bg-slate-50">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
           <div>
@@ -154,7 +299,6 @@ const App = () => {
           </div>
         </header>
 
-        {/* Dashboard: Overview of metrics and system health */}
         {view === 'dashboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
@@ -210,7 +354,6 @@ const App = () => {
               </button>
             </div>
 
-            {/* Logs and status widgets */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold mb-6 flex items-center space-x-2 text-slate-800">
                 <History size={20} className="text-slate-400" />
@@ -272,7 +415,6 @@ const App = () => {
           </div>
         )}
 
-        {/* AI Troubleshoot: Diagnostic interface powered by Gemini */}
         {view === 'troubleshoot' && (
           <div className="max-w-4xl mx-auto space-y-8">
             <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
@@ -307,32 +449,12 @@ const App = () => {
                 </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                <h4 className="font-bold text-slate-800 flex items-center space-x-2 mb-4">
-                  <Activity size={20} className="text-rose-500" />
-                  <span>How Diagnosis Works</span>
-                </h4>
-                <p className="text-slate-600 leading-relaxed text-sm">
-                  Our expert model uses visual and textual pattern matching against thousands of botanical cases to pinpoint nutrient imbalances, pests, and bacterial infections.
-                </p>
-              </div>
-              <div className="bg-amber-50 p-8 rounded-3xl border border-amber-100 shadow-sm">
-                <h4 className="font-bold text-amber-800 flex items-center space-x-2 mb-4">
-                  <Star size={20} fill="currentColor" />
-                  <span>Grower Wisdom</span>
-                </h4>
-                <p className="text-amber-800/80 leading-relaxed text-sm italic font-medium">
-                  "Most common indoor growing issues are caused by incorrect pH or root zone temperature. Always verify your equipment first."
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* View placeholders */}
-        {view !== 'dashboard' && view !== 'troubleshoot' && (
+        {view === 'guide' && <GuideView />}
+
+        {view !== 'dashboard' && view !== 'troubleshoot' && view !== 'guide' && (
           <div className="flex flex-col items-center justify-center py-40">
             <div className="w-24 h-24 bg-slate-100 rounded-[2rem] flex items-center justify-center mb-8 text-slate-300 shadow-inner">
               <Wrench size={48} />
