@@ -72,7 +72,17 @@ export const getPlantProjections = async (plantName: string, variety: string, sy
         }
       }
     });
-    return JSON.parse(response.text || "{}");
+    
+    const text = response.text;
+    if (!text) return null;
+    
+    const data = JSON.parse(text);
+    // Ensure we have numbers and not just empty strings/nulls
+    return {
+      daysToGerminate: Number(data.daysToGerminate) || 0,
+      daysToFlower: Number(data.daysToFlower) || 0,
+      daysToHarvest: Number(data.daysToHarvest) || 0
+    };
   } catch (error) {
     console.error("Projection Error:", error);
     return null;

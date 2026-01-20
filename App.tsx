@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -399,16 +398,26 @@ export default function App() {
       const projections = await getPlantProjections(name, variety, system);
       if (projections) {
         const baseDate = new Date(plantedDateStr || Date.now());
-        const formatDate = (days: number) => {
+        const formatDate = (days: number | undefined) => {
+          if (days === undefined || days === null || isNaN(days)) return '';
           const d = new Date(baseDate);
-          if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+          if (isNaN(d.getTime())) return '';
           d.setDate(d.getDate() + days);
-          return d.toISOString().split('T')[0];
+          try {
+            return d.toISOString().split('T')[0];
+          } catch(e) {
+            return '';
+          }
         };
         const els = getElements(form);
-        if (els.namedItem('pgerm_proj')) els.namedItem('pgerm_proj').value = formatDate(projections.daysToGerminate);
-        if (els.namedItem('pflow_proj')) els.namedItem('pflow_proj').value = formatDate(projections.daysToFlower);
-        if (els.namedItem('phrv_proj')) els.namedItem('phrv_proj').value = formatDate(projections.daysToHarvest);
+        const setElVal = (id: string, val: string) => {
+          const el = els.namedItem(id);
+          if (el) el.value = val;
+        };
+        
+        setElVal('pgerm_proj', formatDate(projections.daysToGerminate));
+        setElVal('pflow_proj', formatDate(projections.daysToFlower));
+        setElVal('phrv_proj', formatDate(projections.daysToHarvest));
       } else {
         alert("AI couldn't estimate dates. Try a more specific name.");
       }
