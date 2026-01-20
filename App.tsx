@@ -15,6 +15,7 @@ import {
   Clock,
   Info,
   ChevronRight,
+  ChevronLeft,
   Sun,
   Home,
   Pencil,
@@ -39,13 +40,18 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
     danger: "bg-rose-50 text-rose-600 hover:bg-rose-100"
   };
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ${variants[variant]} ${className}`}>
+    <button 
+      type={type} 
+      onClick={onClick} 
+      disabled={disabled} 
+      className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ${variants[variant]} ${className}`}
+    >
       {children}
     </button>
   );
 };
 
-// --- View Components ---
+// --- Dashboard View ---
 
 const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any) => {
   const [tip, setTip] = useState("Loading your daily tip...");
@@ -79,14 +85,14 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
         <Card>
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-black text-slate-800">Recent Gardens</h3>
-            <button onClick={() => setView('gardens')} className="text-emerald-600 text-xs font-black uppercase hover:underline">View All</button>
+            <button onClick={() => setView('gardens')} className="text-emerald-600 text-xs font-black uppercase hover:underline outline-none">View All</button>
           </div>
           <div className="space-y-4">
             {gardens.slice(0, 3).map((g: Garden) => (
               <button 
                 key={g.id} 
                 onClick={() => onGardenSelect(g.id)}
-                className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all text-left"
+                className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all text-left outline-none group"
               >
                 <div className="flex items-center space-x-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -97,7 +103,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
                     <p className="text-[10px] text-slate-400 font-black uppercase">{g.plants.length} Plants</p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-slate-300" />
+                <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
               </button>
             ))}
             {gardens.length === 0 && <p className="text-slate-400 text-center py-6">No gardens yet. Start one today!</p>}
@@ -127,7 +133,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
   );
 };
 
-// --- Main App ---
+// --- Main Application ---
 
 export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
@@ -148,12 +154,12 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('hydro_gardens_final_v2');
+    const saved = localStorage.getItem('hydro_gardens_final_v3');
     if (saved) setGardens(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('hydro_gardens_final_v2', JSON.stringify(gardens));
+    localStorage.setItem('hydro_gardens_final_v3', JSON.stringify(gardens));
   }, [gardens]);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
@@ -261,21 +267,21 @@ export default function App() {
         </div>
 
         <div className="flex-1 space-y-2">
-          <button onClick={() => {setView('dashboard'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'dashboard' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <button onClick={() => {setView('dashboard'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all outline-none ${view === 'dashboard' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
             <LayoutDashboard size={20} />
             <span className="font-bold hidden md:block">Dashboard</span>
           </button>
-          <button onClick={() => {setView('gardens'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'gardens' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <button onClick={() => {setView('gardens'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all outline-none ${view === 'gardens' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
             <Leaf size={20} />
             <span className="font-bold hidden md:block">Gardens</span>
           </button>
-          <button onClick={() => {setView('troubleshoot'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'troubleshoot' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <button onClick={() => {setView('troubleshoot'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all outline-none ${view === 'troubleshoot' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
             <Stethoscope size={20} />
             <span className="font-bold hidden md:block">AI Expert</span>
           </button>
         </div>
 
-        <button onClick={() => {setView('settings'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === 'settings' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+        <button onClick={() => {setView('settings'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all outline-none ${view === 'settings' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
           <Settings size={20} />
           <span className="font-bold hidden md:block">Settings</span>
         </button>
@@ -303,7 +309,7 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
             {gardens.map(g => (
               <div key={g.id} className="relative group">
-                <button onClick={() => setSelectedGardenId(g.id)} className="w-full text-left group outline-none h-full">
+                <button onClick={() => setSelectedGardenId(g.id)} className="w-full text-left outline-none h-full">
                   <Card className="hover:border-emerald-200 transition-all hover:translate-y-[-4px] h-full flex flex-col">
                     <div className="flex justify-between items-start mb-6">
                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -320,7 +326,7 @@ export default function App() {
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); setEditingGarden(g); setIsModalOpen(true); }}
-                  className="absolute bottom-6 right-6 p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-all"
+                  className="absolute bottom-6 right-6 p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-all outline-none"
                 >
                   <Pencil size={16} />
                 </button>
@@ -336,7 +342,7 @@ export default function App() {
         {selectedGarden && (
           <div className="space-y-8 animate-in fade-in duration-300">
             <div className="flex justify-between items-center">
-              <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold group">
+              <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold group outline-none">
                 <ChevronLeft size={20} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Back to Gardens
               </button>
               <div className="flex gap-2">
@@ -373,10 +379,10 @@ export default function App() {
                           </div>
                         </div>
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => { setEditingPlant({ plant: p, gardenId: selectedGarden.id }); setIsPlantModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600">
+                          <button onClick={() => { setEditingPlant({ plant: p, gardenId: selectedGarden.id }); setIsPlantModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600 outline-none">
                             <Pencil size={16} />
                           </button>
-                          <button onClick={() => deletePlant(selectedGarden.id, p.id)} className="p-2 text-slate-300 hover:text-rose-500">
+                          <button onClick={() => deletePlant(selectedGarden.id, p.id)} className="p-2 text-slate-300 hover:text-rose-500 outline-none">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -403,7 +409,7 @@ export default function App() {
                     input.value = '';
                   }} className="mb-8">
                     <div className="flex space-x-2">
-                      <input name="notecontent" placeholder="Log an observation (e.g. pH adjusted to 6.0)..." className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-100 outline-none focus:border-emerald-500" required />
+                      <input name="notecontent" placeholder="Log an observation (e.g. pH adjusted to 6.0)..." className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-100 outline-none focus:border-emerald-500 transition-all" required />
                       <Button type="submit">Post</Button>
                     </div>
                   </form>
@@ -448,7 +454,7 @@ export default function App() {
                  <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-[2.5rem]">
                     <h4 className="font-black text-emerald-800 mb-2">Need Help?</h4>
                     <p className="text-sm text-emerald-700 mb-6 leading-relaxed">Describe any issues with this garden to our AI expert.</p>
-                    <Button variant="outline" className="w-full bg-white" onClick={() => setView('troubleshoot')}>Consult AI Assistant</Button>
+                    <Button variant="outline" className="w-full bg-white" onClick={() => { setView('troubleshoot'); setSelectedGardenId(null); }}>Consult AI Assistant</Button>
                  </div>
               </div>
             </div>
@@ -481,7 +487,12 @@ export default function App() {
                         <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
                         <span>Consulting Expert...</span>
                       </div>
-                    ) : "Ask Botanist"}
+                    ) : (
+                      <>
+                        <Sparkles size={20} />
+                        <span>Ask Botanist</span>
+                      </>
+                    )}
                   </Button>
                 </div>
              </Card>
@@ -524,7 +535,7 @@ export default function App() {
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-10">
                  <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingGarden ? 'Edit Garden' : 'New Garden'}</h3>
-                 <button onClick={() => { setIsModalOpen(false); setEditingGarden(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors"><X size={32}/></button>
+                 <button onClick={() => { setIsModalOpen(false); setEditingGarden(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors outline-none"><X size={32}/></button>
               </div>
               <form onSubmit={saveGarden} className="space-y-6">
                  <div>
@@ -560,7 +571,7 @@ export default function App() {
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-10">
                  <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingPlant ? 'Edit Plant' : 'Log New Plant'}</h3>
-                 <button onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors"><X size={32}/></button>
+                 <button onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors outline-none"><X size={32}/></button>
               </div>
               <form onSubmit={savePlant} className="space-y-6">
                  <div>
@@ -583,6 +594,3 @@ export default function App() {
     </div>
   );
 }
-
-// Utility Icons
-const ChevronLeft = ({ size, className }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6"/></svg>;

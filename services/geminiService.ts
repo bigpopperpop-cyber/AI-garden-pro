@@ -1,11 +1,9 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize the Google GenAI SDK with the API key from environment variables.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const getExpertAdvice = async (query: string) => {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     // Use gemini-3-flash-preview for basic text tasks like simple Q&A.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -25,6 +23,7 @@ export const getExpertAdvice = async (query: string) => {
 
 export const getDailyGrowerTip = async () => {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     // Use gemini-3-flash-preview for a quick one-sentence tip.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
