@@ -26,7 +26,9 @@ import {
   Activity,
   Camera,
   Image as ImageIcon,
-  Upload
+  Upload,
+  Download,
+  FileUp
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -296,6 +298,7 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string, data: string, mimeType: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('hydro_gardens_final_v5');
@@ -452,6 +455,43 @@ export default function App() {
     );
     setAiResponse(advice);
     setIsAiLoading(false);
+  };
+
+  const exportData = () => {
+    const dataStr = JSON.stringify(gardens, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hydro_helper_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result as string;
+          const imported = JSON.parse(content);
+          if (Array.isArray(imported)) {
+            if (confirm("Importing this data will overwrite your current gardens. Continue?")) {
+              setGardens(imported);
+              alert("Data imported successfully!");
+            }
+          } else {
+            alert("Invalid data format. Please use a backup file exported from this app.");
+          }
+        } catch (err) {
+          alert("Error reading file. Please make sure it's a valid JSON file.");
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   return (
@@ -778,18 +818,39 @@ export default function App() {
         )}
 
         {view === 'settings' && (
-          <div className="max-w-md mx-auto py-20">
+          <div className="max-w-md mx-auto py-20 space-y-6">
              <Card className="p-10 text-center">
                 <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
                    <Settings size={40} className="text-slate-400" />
                 </div>
                 <h3 className="text-2xl font-black mb-4">Application Settings</h3>
                 <p className="text-slate-500 mb-10 text-sm">Manage your data and platform preferences.</p>
+                
                 <div className="space-y-4">
+                   <div className="grid grid-cols-2 gap-4">
+                      <Button variant="secondary" className="py-4" onClick={exportData}>
+                         <Download size={18}/> <span>Export Backup</span>
+                      </Button>
+                      <Button variant="secondary" className="py-4" onClick={() => importFileRef.current?.click()}>
+                         <FileUp size={18}/> <span>Import Backup</span>
+                      </Button>
+                      <input 
+                         type="file" 
+                         accept="application/json" 
+                         className="hidden" 
+                         ref={importFileRef} 
+                         onChange={handleImportFile}
+                      />
+                   </div>
+                   
                    <Button variant="danger" className="w-full py-4" onClick={() => { if(confirm("Are you sure? This deletes ALL your garden data!")) { localStorage.clear(); window.location.reload(); } }}>
                       <Trash2 size={18}/> <span>Wipe All Garden Data</span>
                    </Button>
-                   <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest tracking-widest">Version 1.4.0 (Multimodal AI)</p>
+                   
+                   <div className="pt-8 space-y-2">
+                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest tracking-widest">Version 1.5.0 (Data Portability)</p>
+                     <p className="text-[8px] text-slate-200 font-medium">Exported files can be imported on any device running HydroHelper.</p>
+                   </div>
                 </div>
              </Card>
           </div>
