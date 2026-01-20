@@ -47,7 +47,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
 
 // --- View Components ---
 
-const DashboardView = ({ gardens, notifications, setView }: any) => {
+const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any) => {
   const [tip, setTip] = useState("Loading your daily tip...");
   
   useEffect(() => {
@@ -83,7 +83,11 @@ const DashboardView = ({ gardens, notifications, setView }: any) => {
           </div>
           <div className="space-y-4">
             {gardens.slice(0, 3).map((g: Garden) => (
-              <div key={g.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <button 
+                key={g.id} 
+                onClick={() => onGardenSelect(g.id)}
+                className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all text-left"
+              >
                 <div className="flex items-center space-x-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
                     {g.type === 'Indoor' ? <Home size={18} /> : <Sun size={18} />}
@@ -94,7 +98,7 @@ const DashboardView = ({ gardens, notifications, setView }: any) => {
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-slate-300" />
-              </div>
+              </button>
             ))}
             {gardens.length === 0 && <p className="text-slate-400 text-center py-6">No gardens yet. Start one today!</p>}
           </div>
@@ -144,15 +148,20 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('hydro_gardens_final');
+    const saved = localStorage.getItem('hydro_gardens_final_v2');
     if (saved) setGardens(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('hydro_gardens_final', JSON.stringify(gardens));
+    localStorage.setItem('hydro_gardens_final_v2', JSON.stringify(gardens));
   }, [gardens]);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
+
+  const handleGardenSelect = (id: string) => {
+    setSelectedGardenId(id);
+    setView('gardens');
+  };
 
   const saveGarden = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -288,7 +297,7 @@ export default function App() {
           )}
         </header>
 
-        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} />}
 
         {view === 'gardens' && !selectedGarden && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
@@ -327,8 +336,8 @@ export default function App() {
         {selectedGarden && (
           <div className="space-y-8 animate-in fade-in duration-300">
             <div className="flex justify-between items-center">
-              <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold">
-                <ChevronLeft size={20} className="mr-1" /> Back to Gardens
+              <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold group">
+                <ChevronLeft size={20} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Back to Gardens
               </button>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => { setEditingGarden(selectedGarden); setIsModalOpen(true); }}>
