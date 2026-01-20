@@ -1,11 +1,21 @@
 
 export type GardenType = 'Indoor' | 'Outdoor';
+export type LifecycleStage = 'Germination' | 'Vegetative' | 'Flowering' | 'Fruiting' | 'Harvested';
+
+export interface HarvestRecord {
+  id: string;
+  date: string;
+  amount: number; // in grams or count
+  unit: string;
+}
 
 export interface Plant {
   id: string;
   name: string;
   variety?: string;
   plantedDate: string;
+  stage: LifecycleStage;
+  harvests: HarvestRecord[];
 }
 
 export interface GardenNote {
@@ -33,4 +43,4 @@ export interface Notification {
   type: 'maintenance' | 'alert' | 'tip';
 }
 
-export type ViewState = 'dashboard' | 'gardens' | 'troubleshoot' | 'settings';
+export type ViewState = 'dashboard' | 'gardens' | 'troubleshoot' | 'reports' | 'settings';

@@ -1,19 +1,31 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-export const getExpertAdvice = async (query: string) => {
+export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Use gemini-3-flash-preview for basic text tasks like simple Q&A.
+    
+    const parts: any[] = [{ text: `You are a friendly hydroponic assistant for beginners. Answer the following question concisely and simply: ${query}` }];
+    
+    if (image) {
+      parts.push({
+        inlineData: {
+          data: image.data,
+          mimeType: image.mimeType
+        }
+      });
+    }
+
+    // Use gemini-3-flash-preview for multimodal tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `You are a friendly hydroponic assistant for beginners. Answer the following question concisely and simply: ${query}`,
+      contents: { parts },
       config: {
-        systemInstruction: "Keep answers under 150 words. Use bullet points for steps.",
+        systemInstruction: "You are a professional botanist and hydroponic expert. If an image is provided, analyze it for signs of pests, nutrient deficiencies, or diseases. Keep answers under 150 words. Use bullet points for steps.",
         temperature: 0.7,
       }
     });
-    // Access response.text as a property.
+
     return response.text || "I'm sorry, I couldn't find an answer for that right now.";
   } catch (error) {
     console.error("AI Error:", error);
@@ -24,7 +36,6 @@ export const getExpertAdvice = async (query: string) => {
 export const getDailyGrowerTip = async () => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Use gemini-3-flash-preview for a quick one-sentence tip.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: "Give a one-sentence beginner tip for hydroponic or outdoor gardening.",
