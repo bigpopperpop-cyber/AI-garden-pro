@@ -33,7 +33,10 @@ import {
   Zap,
   HardDrive,
   Coffee,
-  Heart
+  Heart,
+  Share2,
+  Copy,
+  Check
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -65,7 +68,8 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
     secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
     outline: "border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
     danger: "bg-rose-50 text-rose-600 hover:bg-rose-100",
-    amber: "bg-amber-100 text-amber-700 hover:bg-amber-200"
+    amber: "bg-amber-100 text-amber-700 hover:bg-amber-200",
+    blue: "bg-blue-50 text-blue-600 hover:bg-blue-100"
   };
   return (
     <button 
@@ -306,6 +310,9 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
+  // Sharing state
+  const [isCopied, setIsCopied] = useState(false);
+
   useEffect(() => {
     const saved = localStorage.getItem('hydro_gardens_final_v5');
     if (saved) setGardens(JSON.parse(saved));
@@ -500,6 +507,14 @@ export default function App() {
     }
   };
 
+  const handleShare = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
+
   const supportLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gizmooo@yahoo.com&item_name=Support%20HydroHelper%20Development&currency_code=USD";
 
   return (
@@ -533,6 +548,10 @@ export default function App() {
         </div>
 
         <div className="space-y-2">
+          <button onClick={handleShare} className="w-full flex items-center space-x-3 p-3 rounded-xl text-emerald-600 hover:bg-emerald-50 transition-all outline-none border border-transparent hover:border-emerald-100 relative group">
+            {isCopied ? <Check size={20} className="text-emerald-500 animate-in zoom-in" /> : <Share2 size={20} />}
+            <span className="font-bold hidden md:block">{isCopied ? 'Link Copied!' : 'Share Site'}</span>
+          </button>
           <a href={supportLink} target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 p-3 rounded-xl text-amber-600 hover:bg-amber-50 transition-all outline-none border border-transparent hover:border-amber-100">
             <Coffee size={20} />
             <span className="font-bold hidden md:block">Buy me a coffee</span>
@@ -862,9 +881,25 @@ export default function App() {
                    </Button>
                    
                    <div className="pt-8">
-                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.6.0 (Stable)</p>
+                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.7.0 (Stable)</p>
                    </div>
                 </div>
+             </Card>
+
+             <Card className="p-8 border-l-4 border-l-blue-500 bg-blue-50/20">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                      <Share2 size={20} />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Spread the Word</h3>
+                  </div>
+                </div>
+                <p className="text-slate-700 text-sm mb-6 leading-relaxed">Know another indoor gardener who could use a helping hand? Share HydroHelper with them! It's completely private and runs right in the browser.</p>
+                <Button variant="blue" onClick={handleShare} className="w-full sm:w-auto shadow-sm">
+                   {isCopied ? <Check size={18} /> : <Copy size={18} />}
+                   <span>{isCopied ? 'Link Copied to Clipboard!' : 'Copy App Link'}</span>
+                </Button>
              </Card>
 
              <Card className="p-8 border-l-4 border-l-amber-500 bg-amber-50/20">
