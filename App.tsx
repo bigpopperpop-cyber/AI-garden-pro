@@ -28,7 +28,10 @@ import {
   Image as ImageIcon,
   Upload,
   Download,
-  FileUp
+  FileUp,
+  ShieldCheck,
+  Zap,
+  HardDrive
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -818,10 +821,10 @@ export default function App() {
         )}
 
         {view === 'settings' && (
-          <div className="max-w-md mx-auto py-20 space-y-6">
+          <div className="max-w-xl mx-auto py-10 space-y-8 animate-in slide-in-from-bottom-6 duration-500">
              <Card className="p-10 text-center">
-                <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                   <Settings size={40} className="text-slate-400" />
+                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                   <Settings size={40} />
                 </div>
                 <h3 className="text-2xl font-black mb-4">Application Settings</h3>
                 <p className="text-slate-500 mb-10 text-sm">Manage your data and platform preferences.</p>
@@ -847,10 +850,51 @@ export default function App() {
                       <Trash2 size={18}/> <span>Wipe All Garden Data</span>
                    </Button>
                    
-                   <div className="pt-8 space-y-2">
-                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest tracking-widest">Version 1.5.0 (Data Portability)</p>
-                     <p className="text-[8px] text-slate-200 font-medium">Exported files can be imported on any device running HydroHelper.</p>
+                   <div className="pt-8">
+                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.5.0 (Stable)</p>
                    </div>
+                </div>
+             </Card>
+
+             <Card className="p-8 border-l-4 border-l-emerald-500 bg-emerald-50/20">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight">Privacy & Local Storage</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3">
+                      <Zap size={18} className="text-emerald-500 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">Your Data is Yours</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">All your garden logs, plant photos, and harvest records are stored <strong>locally in your browser</strong>. No data ever leaves your device unless you choose to export it.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <Download size={18} className="text-emerald-500 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">Move Anywhere</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">Want to switch from your phone to a laptop? Simply hit <strong>Export</strong> to get a tiny backup file, then <strong>Import</strong> it on the new device.</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3">
+                      <HardDrive size={18} className="text-emerald-500 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">Zero Footprint</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">This app is extremely lightweight. Even with hundreds of garden entries, your data usually takes up less space than <strong>one low-quality photo</strong> (typically under 100KB).</p>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-white/50 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                       <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Storage Status</span>
+                       <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">Optimized</span>
+                    </div>
+                  </div>
                 </div>
              </Card>
           </div>
