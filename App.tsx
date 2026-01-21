@@ -31,7 +31,9 @@ import {
   FileUp,
   ShieldCheck,
   Zap,
-  HardDrive
+  HardDrive,
+  Coffee,
+  Heart
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -62,7 +64,8 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
     primary: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-100 disabled:opacity-50",
     secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
     outline: "border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
-    danger: "bg-rose-50 text-rose-600 hover:bg-rose-100"
+    danger: "bg-rose-50 text-rose-600 hover:bg-rose-100",
+    amber: "bg-amber-100 text-amber-700 hover:bg-amber-200"
   };
   return (
     <button 
@@ -497,6 +500,8 @@ export default function App() {
     }
   };
 
+  const supportLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gizmooo@yahoo.com&item_name=Support%20HydroHelper%20Development&currency_code=USD";
+
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       {/* Sidebar Navigation */}
@@ -527,10 +532,16 @@ export default function App() {
           </button>
         </div>
 
-        <button onClick={() => {setView('settings'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all outline-none ${view === 'settings' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-          <Settings size={20} />
-          <span className="font-bold hidden md:block">Settings</span>
-        </button>
+        <div className="space-y-2">
+          <a href={supportLink} target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 p-3 rounded-xl text-amber-600 hover:bg-amber-50 transition-all outline-none border border-transparent hover:border-amber-100">
+            <Coffee size={20} />
+            <span className="font-bold hidden md:block">Buy me a coffee</span>
+          </a>
+          <button onClick={() => {setView('settings'); setSelectedGardenId(null)}} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all outline-none ${view === 'settings' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+            <Settings size={20} />
+            <span className="font-bold hidden md:block">Settings</span>
+          </button>
+        </div>
       </nav>
 
       <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-32">
@@ -851,8 +862,27 @@ export default function App() {
                    </Button>
                    
                    <div className="pt-8">
-                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.5.0 (Stable)</p>
+                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.6.0 (Stable)</p>
                    </div>
+                </div>
+             </Card>
+
+             <Card className="p-8 border-l-4 border-l-amber-500 bg-amber-50/20">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-amber-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                    <Coffee size={20} />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight">Support the Creator</h3>
+                </div>
+                <p className="text-slate-700 text-sm mb-6 leading-relaxed">If you find HydroHelper useful and would like to support its ongoing development, feel free to contribute! Your support helps keep this tool free and regularly updated.</p>
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  <a href={supportLink} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+                    <Button variant="amber" className="w-full sm:w-auto py-3 px-8 shadow-md">
+                      <Heart size={18} className="fill-amber-700" />
+                      <span>Donate via PayPal</span>
+                    </Button>
+                  </a>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">PayPal: gizmooo@yahoo.com</p>
                 </div>
              </Card>
 
