@@ -49,4 +49,4 @@ export interface Notification {
   type: 'maintenance' | 'alert' | 'tip';
 }
 
-export type ViewState = 'dashboard' | 'gardens' | 'troubleshoot' | 'profiles' | 'settings';
+export type ViewState = 'dashboard' | 'gardens' | 'profiles' | 'settings';
