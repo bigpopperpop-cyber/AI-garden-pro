@@ -23,7 +23,10 @@ import {
   MessageSquare,
   Send,
   Camera,
-  Activity
+  Activity,
+  FileText,
+  Printer,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
@@ -76,7 +79,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
              <span className="font-bold text-emerald-100 uppercase tracking-widest text-[10px]">Grower Mode Active</span>
           </div>
           <h2 className="text-4xl font-black mb-2 tracking-tight">Growth Dashboard</h2>
-          <p className="text-emerald-50/90 font-medium italic text-lg opacity-80">"Track your hydroponic journey effortlessly."</p>
+          <p className="text-emerald-50/90 font-medium italic text-lg opacity-80">"Track your growing Journey effortlessly."</p>
           
           <div className="flex gap-4 mt-8">
             <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl">
@@ -195,6 +198,112 @@ export default function App() {
     setView('gardens');
   };
 
+  const handleExportPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const summaryHtml = `
+      <html>
+      <head>
+        <title>HydroGrow Garden Summary</title>
+        <style>
+          body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+          .header { border-bottom: 4px solid #10b981; padding-bottom: 20px; margin-bottom: 40px; }
+          .header h1 { margin: 0; color: #059669; font-size: 32px; font-weight: 900; }
+          .header p { margin: 5px 0 0; color: #64748b; text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+          .garden-block { margin-bottom: 50px; page-break-inside: avoid; }
+          .garden-header { background: #f8fafc; padding: 20px; border-radius: 15px; margin-bottom: 20px; border-left: 5px solid #10b981; }
+          .garden-header h2 { margin: 0; font-size: 24px; font-weight: 800; }
+          .garden-meta { font-size: 12px; color: #64748b; margin-top: 5px; font-weight: 600; }
+          .plant-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          .plant-table th { text-align: left; font-size: 10px; text-transform: uppercase; color: #94a3b8; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+          .plant-table td { padding: 15px 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+          .tag { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+          .tag-phase { background: #ecfdf5; color: #059669; }
+          .note-preview { font-size: 12px; color: #64748b; font-style: italic; max-width: 300px; }
+          @media print { .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>HydroGrow Pro Report</h1>
+          <p>Garden Status Summary • Generated ${new Date().toLocaleDateString()}</p>
+        </div>
+        ${gardens.map(g => `
+          <div class="garden-block">
+            <div class="garden-header">
+              <h2>${g.name}</h2>
+              <div class="garden-meta">${g.type} Environment • Established ${g.startedDate}</div>
+            </div>
+            <table class="plant-table">
+              <thead>
+                <tr>
+                  <th>Specimen</th>
+                  <th>Variety</th>
+                  <th>Age</th>
+                  <th>Current Phase</th>
+                  <th>Latest Care Log</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${g.plants.map(p => `
+                  <tr>
+                    <td style="font-weight: 700;">${p.name}</td>
+                    <td>${p.variety || 'Heirloom'}</td>
+                    <td>${calculateAge(p.plantedDate)} Days</td>
+                    <td><span class="tag tag-phase">${p.stage}</span></td>
+                    <td class="note-preview">${p.notes && p.notes.length > 0 ? p.notes[0].content.substring(0, 100) + (p.notes[0].content.length > 100 ? '...' : '') : 'No logs recorded.'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+        <script>window.print();</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(summaryHtml);
+    printWindow.document.close();
+  };
+
+  const handleExportExcel = () => {
+    const headers = ["Garden Name", "Type", "Plant Name", "Variety", "Planted Date", "Stage", "Age (Days)", "Latest Note"];
+    const rows: string[][] = [];
+    
+    gardens.forEach(g => {
+      g.plants.forEach(p => {
+        const age = calculateAge(p.plantedDate);
+        const latestNote = p.notes && p.notes.length > 0 
+          ? p.notes[0].content.replace(/"/g, '""') 
+          : "No logs recorded";
+        
+        rows.push([
+          g.name,
+          g.type,
+          p.name,
+          p.variety || 'Heirloom',
+          p.plantedDate,
+          p.stage,
+          age.toString(),
+          `"${latestNote}"`
+        ]);
+      });
+    });
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `hydrogrow_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const saveGarden = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = e.currentTarget;
@@ -299,8 +408,6 @@ export default function App() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        
-        // Wait a second for camera to stabilize
         await new Promise(r => setTimeout(r, 1000));
         
         const canvas = canvasRef.current;
@@ -310,8 +417,6 @@ export default function App() {
           canvas.height = video.videoHeight;
           canvas.getContext('2d')?.drawImage(video, 0, 0);
           const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
-          
-          // Stop camera
           stream.getTracks().forEach(track => track.stop());
 
           const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -356,7 +461,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
-      {/* Hidden elements for scanning */}
       <video ref={videoRef} className="hidden" />
       <canvas ref={canvasRef} className="hidden" />
 
@@ -463,7 +567,6 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Plant Preview Info */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
                            <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100">
                              <span className="block text-[8px] text-slate-400 uppercase font-black">Age</span>
@@ -475,7 +578,6 @@ export default function App() {
                            </div>
                         </div>
 
-                        {/* Latest Note Preview */}
                         {p.notes && p.notes.length > 0 ? (
                           <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50 italic text-slate-600 text-[11px] line-clamp-2">
                              <span className="font-black uppercase text-[8px] text-emerald-700 block mb-1">Latest Log ({p.notes[0].date})</span>
@@ -488,12 +590,6 @@ export default function App() {
                         )}
                       </div>
                     ))}
-                    {selectedGarden.plants.length === 0 && (
-                      <div className="text-center py-16 opacity-30 grayscale">
-                        <Sprout size={64} className="mx-auto mb-4" />
-                        <p className="font-black uppercase tracking-widest text-xs">Garden Empty</p>
-                      </div>
-                    )}
                   </div>
                 </Card>
               </div>
@@ -512,23 +608,31 @@ export default function App() {
                     </div>
                   </div>
                 </Card>
-
-                <Card className="bg-white">
-                  <h4 className="font-black mb-4 flex items-center gap-2 text-slate-800"><Activity size={18}/> Quick Tips</h4>
-                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                     <p className="text-[11px] text-emerald-800 font-medium italic">"Keep your nutrient solution between 18-22°C to maximize oxygen levels."</p>
-                  </div>
-                </Card>
               </div>
             </div>
           </div>
         )}
 
         {view === 'settings' && (
-          <div className="max-w-xl mx-auto py-10">
+          <div className="max-w-2xl mx-auto py-10 space-y-8">
+            <Card className="p-10 text-center">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6"><FileText size={32} /></div>
+              <h3 className="text-2xl font-black mb-2">Export Summary</h3>
+              <p className="text-slate-400 text-sm mb-8">Generate a report of your current growth cycle to share or analyze.</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Button variant="primary" className="py-4 shadow-xl" onClick={handleExportPDF}>
+                  <Printer size={18}/><span>PDF Summary</span>
+                </Button>
+                <Button variant="outline" className="py-4 border-emerald-600 text-emerald-600 bg-white hover:bg-emerald-50" onClick={handleExportExcel}>
+                  <FileSpreadsheet size={18}/><span>Excel (CSV)</span>
+                </Button>
+              </div>
+            </Card>
+
             <Card className="p-10 text-center">
               <div className="w-16 h-16 bg-slate-100 text-slate-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Settings size={32} /></div>
-              <h3 className="text-2xl font-black mb-8">Storage Management</h3>
+              <h3 className="text-2xl font-black mb-8">Data Controls</h3>
               <div className="space-y-4">
                 <Button variant="secondary" className="w-full" onClick={() => {
                    const data = JSON.stringify(gardens, null, 2);
@@ -538,7 +642,7 @@ export default function App() {
                    a.href = url;
                    a.download = `hydro-backup.json`;
                    a.click();
-                }}><Download size={18}/><span>Export My Data</span></Button>
+                }}><Download size={18}/><span>Backup Database (JSON)</span></Button>
                 <Button variant="danger" className="w-full" onClick={() => { if(confirm("Permanently wipe local user data?")) { localStorage.clear(); window.location.reload(); } }}><Trash2 size={18}/><span>Wipe App Storage</span></Button>
               </div>
             </Card>
@@ -566,13 +670,12 @@ export default function App() {
                  <button onClick={() => setIsPlantDetailOpen(false)} className="p-3 bg-white text-slate-400 hover:text-slate-600 rounded-2xl shadow-sm outline-none transition-all"><X size={24}/></button>
               </div>
 
-              {/* Tabs Navigation */}
               <div className="flex px-10 border-b border-slate-100 bg-slate-50/50">
                  <button 
                   onClick={() => setPlantDetailTab('overview')}
                   className={`px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${plantDetailTab === 'overview' ? 'text-emerald-600' : 'text-slate-400'}`}
                  >
-                    Specimen Overview
+                    Overview
                     {plantDetailTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full" />}
                  </button>
                  <button 
@@ -580,7 +683,6 @@ export default function App() {
                   className={`px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${plantDetailTab === 'notes' ? 'text-emerald-600' : 'text-slate-400'}`}
                  >
                     Care Logs
-                    {inspectedPlant.notes?.length > 0 && <span className="ml-2 bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full text-[10px]">{inspectedPlant.notes.length}</span>}
                     {plantDetailTab === 'notes' && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full" />}
                  </button>
               </div>
@@ -601,52 +703,30 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Growth Timeline Component */}
                       {inspectedPlant.projection && (
                         <div className="bg-emerald-50/30 rounded-[2.5rem] p-8 border border-emerald-100">
                             <div className="flex items-center gap-2 mb-6">
                               <Sparkles size={18} className="text-emerald-600" />
-                              <h4 className="text-sm font-black uppercase text-emerald-600 tracking-widest">AI Predicted Growth Timeline</h4>
+                              <h4 className="text-sm font-black uppercase text-emerald-600 tracking-widest">AI Projected Timeline</h4>
                             </div>
-                            
                             <div className="relative">
                               <div className="absolute top-1/2 left-0 w-full h-1 bg-emerald-100 -translate-y-1/2 rounded-full"></div>
                               <div className="relative flex justify-between">
-                                  {[
-                                    { label: 'Germination', date: inspectedPlant.projection.germinationDate },
-                                    { label: 'Veg Start', date: inspectedPlant.projection.vegetativeDate },
-                                    { label: 'Bloom', date: inspectedPlant.projection.floweringDate },
-                                    { label: 'Harvest', date: inspectedPlant.projection.harvestDate }
-                                  ].map((milestone, idx) => {
-                                    const isPassed = new Date(milestone.date) <= new Date();
-                                    return (
+                                  {['Germination', 'Vegetative', 'Flowering', 'Harvest'].map((milestone, idx) => (
                                       <div key={idx} className="flex flex-col items-center z-10">
-                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-colors ${isPassed ? 'bg-emerald-600 text-white shadow-lg' : 'bg-white border-2 border-emerald-100 text-emerald-200'}`}>
-                                            {isPassed ? <CheckCircle2 size={16} /> : <div className="w-2 h-2 rounded-full bg-current" />}
+                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 bg-white border-2 border-emerald-100 text-emerald-200`}>
+                                            <div className="w-2 h-2 rounded-full bg-current" />
                                           </div>
-                                          <p className="text-[10px] font-black uppercase text-slate-400 text-center leading-tight mb-1">{milestone.label}</p>
-                                          <p className={`text-[10px] font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-400'}`}>{milestone.date}</p>
+                                          <p className="text-[10px] font-black uppercase text-slate-400 text-center leading-tight">{milestone}</p>
                                       </div>
-                                    );
-                                  })}
+                                  ))}
                               </div>
-                            </div>
-
-                            <div className="mt-8 flex items-start gap-3 bg-white p-4 rounded-2xl border border-emerald-50">
-                              <TrendingUp size={16} className="text-emerald-500 mt-0.5" />
-                              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                                  <span className="font-black text-emerald-700 uppercase mr-1">Expert Tip:</span>
-                                  {inspectedPlant.projection.notes}
-                              </p>
                             </div>
                         </div>
                       )}
 
                       <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Clock size={18} className="text-emerald-600" />
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Update Current Phase Manually</label>
-                        </div>
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Update Lifecycle Phase</label>
                         <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-[2rem]">
                             {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((s) => (
                               <button 
@@ -662,20 +742,19 @@ export default function App() {
                    </>
                  ) : (
                    <div className="space-y-8 animate-in slide-in-from-right-4">
-                      {/* Note Input */}
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                          <div className="sm:col-span-3">
                             <form onSubmit={addPlantNote} className="relative">
                               <textarea 
                                 value={newNoteText}
                                 onChange={(e) => setNewNoteText(e.target.value)}
-                                placeholder="Log specimen progress, observations..."
+                                placeholder="Log specimen progress, feeding changes..."
                                 className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] outline-none focus:border-emerald-500 font-medium text-slate-700 resize-none min-h-[140px] pr-16"
                               />
                               <button 
                                 type="submit"
                                 disabled={!newNoteText.trim()}
-                                className="absolute bottom-4 right-4 w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
+                                className="absolute bottom-4 right-4 w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-30"
                               >
                                 <Send size={20} />
                               </button>
@@ -685,45 +764,28 @@ export default function App() {
                             <button 
                               onClick={handleAiScan}
                               disabled={isScanning}
-                              className={`w-full h-full flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 border-dashed transition-all ${isScanning ? 'border-emerald-500 bg-emerald-50 animate-pulse-subtle' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30'}`}
+                              className={`w-full h-full flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 border-dashed transition-all ${isScanning ? 'border-emerald-500 bg-emerald-50 animate-pulse-subtle' : 'border-slate-200 hover:border-emerald-400'}`}
                             >
                                {isScanning ? (
                                  <Loader2 className="animate-spin text-emerald-600 mb-2" size={32} />
                                ) : (
                                  <Camera className="text-slate-400 mb-2" size={32} />
                                )}
-                               <span className="text-[10px] font-black uppercase text-center">{isScanning ? 'Analyzing...' : 'Gemini AI Health Scan'}</span>
+                               <span className="text-[10px] font-black uppercase text-center">AI Scan</span>
                             </button>
                          </div>
                       </div>
 
-                      {/* Notes List */}
                       <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Historical Care Logs</h4>
-                        {(inspectedPlant.notes || []).length > 0 ? (
-                          (inspectedPlant.notes || []).map(note => (
-                            <div key={note.id} className="group relative bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-emerald-100 transition-all">
-                              <div className="flex justify-between items-start mb-2">
-                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">{note.date}</span>
-                                <button 
-                                  onClick={() => deletePlantNote(note.id)}
-                                  className="text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                              <p className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                        {(inspectedPlant.notes || []).map(note => (
+                          <div key={note.id} className="group relative bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-emerald-100 transition-all">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">{note.date}</span>
+                              <button onClick={() => deletePlantNote(note.id)} className="text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
                             </div>
-                          ))
-                        ) : (
-                          <div className="text-center py-16 px-10 border-2 border-dashed border-slate-50 rounded-[3rem]">
-                             <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
-                               <MessageSquare size={24} />
-                             </div>
-                             <p className="text-slate-400 text-sm font-bold">No logs recorded for this specimen.</p>
-                             <p className="text-slate-300 text-xs mt-1">Start by adding your first observation above.</p>
+                            <p className="text-slate-700 font-medium leading-relaxed">{note.content}</p>
                           </div>
-                        )}
+                        ))}
                       </div>
                    </div>
                  )}
@@ -751,7 +813,7 @@ export default function App() {
               <form onSubmit={saveGarden} className="space-y-6">
                  <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Garden Name</label>
-                    <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. Basil Tower" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 font-bold" />
+                    <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. Basil Tower" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
                  </div>
                  <div className="grid grid-cols-2 gap-6">
                     <div>
@@ -808,15 +870,6 @@ export default function App() {
                        </>
                     )}
                  </Button>
-                 
-                 <button 
-                   type="button" 
-                   onClick={() => setIsPlantModalOpen(false)} 
-                   disabled={isAiLoading}
-                   className="w-full text-center text-slate-400 font-bold py-2 mt-2 uppercase text-[10px] tracking-widest disabled:opacity-50"
-                 >
-                    Cancel
-                 </button>
               </form>
            </div>
         </div>
