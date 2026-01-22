@@ -71,6 +71,8 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, curren
 
   const totalPlants = gardens.reduce((acc: number, g: Garden) => acc + g.plants.length, 0);
 
+  if (!currentProfile) return null;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="bg-emerald-600 p-10 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
@@ -157,6 +159,7 @@ export default function App() {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [currentProfileId, setCurrentProfileId] = useState<string>('');
   const [gardens, setGardens] = useState<Garden[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [notifications] = useState<Notification[]>([
     { id: '1', title: 'pH Check Reminder', message: 'Suggested maintenance for your hydroponic reservoir.', date: new Date().toISOString(), read: false, type: 'maintenance' }
   ]);
@@ -191,6 +194,7 @@ export default function App() {
       setCurrentProfileId('default');
       localStorage.setItem('hydro_profiles_v1', JSON.stringify([defaultProfile]));
     }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -285,9 +289,6 @@ export default function App() {
     setIsHarvestModalOpen(false);
   };
 
-  // --- Plant Management Actions ---
-
-  // Fixes: Error in file App.tsx on line 592: Cannot find name 'updateStage'.
   const updateStage = (stage: LifecycleStage) => {
     if (!selectedGardenId || !selectedPlantId) return;
     setGardens(gardens.map(g => g.id === selectedGardenId ? {
@@ -296,7 +297,6 @@ export default function App() {
     } : g));
   };
 
-  // Fixes: Error in file App.tsx on line 603: Cannot find name 'deletePlant'.
   const deletePlant = (plantId: string) => {
     if (!selectedGardenId || !confirm("Are you sure you want to remove this specimen?")) return;
     setGardens(gardens.map(g => g.id === selectedGardenId ? {
@@ -318,6 +318,17 @@ export default function App() {
     }
   };
 
+  if (isLoading || !currentProfile) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center space-y-4">
+           <Sprout className="w-12 h-12 text-emerald-600 animate-bounce" />
+           <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Initializing Garden...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       {/* --- Sidebar --- */}
@@ -332,12 +343,12 @@ export default function App() {
         {/* Profile Switcher */}
         <div className="px-2">
            <button onClick={() => setView('profiles')} className="w-full flex items-center space-x-3 p-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 group">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs ${currentProfile?.avatarColor || 'bg-slate-400'}`}>
-                 {currentProfile?.name[0] || 'U'}
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs ${currentProfile.avatarColor}`}>
+                 {currentProfile.name[0]}
               </div>
               <div className="hidden md:block text-left overflow-hidden">
                  <p className="text-[10px] font-black uppercase text-slate-400 leading-none mb-0.5">Active</p>
-                 <p className="font-bold text-xs truncate text-slate-700">{currentProfile?.name}</p>
+                 <p className="font-bold text-xs truncate text-slate-700">{currentProfile.name}</p>
               </div>
            </button>
         </div>
@@ -362,7 +373,7 @@ export default function App() {
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">{selectedGarden ? selectedGarden.name : view}</h1>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-              User: {currentProfile?.name} • Multi-User Environment
+              User: {currentProfile.name} • Multi-User Environment
             </p>
           </div>
           {view === 'gardens' && !selectedGarden && (
