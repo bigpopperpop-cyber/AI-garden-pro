@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Sprout, 
@@ -154,12 +154,37 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, curren
 
 // --- Main Application ---
 
+const DEFAULT_PROFILE: UserProfile = { id: 'default', name: 'Master Grower', avatarColor: 'bg-emerald-500' };
+
 export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
-  const [currentProfileId, setCurrentProfileId] = useState<string>('');
-  const [gardens, setGardens] = useState<Garden[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // Synchronous State Initialization to prevent "undefined" crashes
+  const [profiles, setProfiles] = useState<UserProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem('hydro_profiles_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn("Failed to load profiles from storage", e);
+    }
+    return [DEFAULT_PROFILE];
+  });
+
+  const [currentProfileId, setCurrentProfileId] = useState<string>(() => profiles[0].id);
+
+  const [gardens, setGardens] = useState<Garden[]>(() => {
+    try {
+      const saved = localStorage.getItem(`hydro_data_${profiles[0].id}`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("Failed to load gardens from storage", e);
+    }
+    return [];
+  });
+
   const [notifications] = useState<Notification[]>([
     { id: '1', title: 'pH Check Reminder', message: 'Suggested maintenance for your hydroponic reservoir.', date: new Date().toISOString(), read: false, type: 'maintenance' }
   ]);
@@ -180,38 +205,35 @@ export default function App() {
   const [selectedImage, setSelectedImage] = useState<{ url: string, data: string, mimeType: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Profile Lifecycle
-  useEffect(() => {
-    const savedProfiles = localStorage.getItem('hydro_profiles_v1');
-    if (savedProfiles) {
-      const parsed = JSON.parse(savedProfiles);
-      setProfiles(parsed);
-      if (parsed.length > 0) setCurrentProfileId(parsed[0].id);
-    } else {
-      // Create initial default profile
-      const defaultProfile = { id: 'default', name: 'Master Grower', avatarColor: 'bg-emerald-500' };
-      setProfiles([defaultProfile]);
-      setCurrentProfileId('default');
-      localStorage.setItem('hydro_profiles_v1', JSON.stringify([defaultProfile]));
-    }
-    setIsLoading(false);
-  }, []);
+  // Derive currentProfile safely
+  const currentProfile = useMemo(() => {
+    return profiles.find(p => p.id === currentProfileId) || profiles[0] || DEFAULT_PROFILE;
+  }, [profiles, currentProfileId]);
 
-  useEffect(() => {
-    if (!currentProfileId) return;
-    const savedGardens = localStorage.getItem(`hydro_data_${currentProfileId}`);
-    if (savedGardens) setGardens(JSON.parse(savedGardens));
-    else setGardens([]);
-  }, [currentProfileId]);
-
-  useEffect(() => {
-    if (!currentProfileId) return;
-    localStorage.setItem(`hydro_data_${currentProfileId}`, JSON.stringify(gardens));
-  }, [gardens, currentProfileId]);
-
-  const currentProfile = profiles.find(p => p.id === currentProfileId) || profiles[0];
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
+
+  // Persistence
+  useEffect(() => {
+    localStorage.setItem('hydro_profiles_v1', JSON.stringify(profiles));
+  }, [profiles]);
+
+  useEffect(() => {
+    if (currentProfileId) {
+      localStorage.setItem(`hydro_data_${currentProfileId}`, JSON.stringify(gardens));
+    }
+  }, [gardens, currentProfileId]);
+
+  // Load gardens when switching profile
+  useEffect(() => {
+    const saved = localStorage.getItem(`hydro_data_${currentProfileId}`);
+    if (saved) {
+      try { setGardens(JSON.parse(saved)); } 
+      catch (e) { setGardens([]); }
+    } else {
+      setGardens([]);
+    }
+  }, [currentProfileId]);
 
   const calculateAge = (date: string) => {
     const start = new Date(date);
@@ -248,12 +270,11 @@ export default function App() {
     const name = (f.elements.namedItem('gname') as HTMLInputElement).value;
     const type = (f.elements.namedItem('gtype') as HTMLInputElement).value as GardenType;
     const startedDate = (f.elements.namedItem('gdate') as HTMLInputElement).value;
-    const description = (f.elements.namedItem('gdesc') as HTMLTextAreaElement).value;
 
     if (editingGarden) {
-      setGardens(gardens.map(g => g.id === editingGarden.id ? { ...g, name, type, startedDate, description } : g));
+      setGardens(gardens.map(g => g.id === editingGarden.id ? { ...g, name, type, startedDate } : g));
     } else {
-      setGardens([...gardens, { id: Date.now().toString(), name, type, startedDate, description, plants: [], notes: [] }]);
+      setGardens([...gardens, { id: Date.now().toString(), name, type, startedDate, description: "", plants: [], notes: [] }]);
     }
     setIsModalOpen(false);
     setEditingGarden(null);
@@ -313,22 +334,11 @@ export default function App() {
       const newProfile = { id: Date.now().toString(), name, avatarColor: colors[Math.floor(Math.random() * colors.length)] };
       const updated = [...profiles, newProfile];
       setProfiles(updated);
-      localStorage.setItem('hydro_profiles_v1', JSON.stringify(updated));
       setCurrentProfileId(newProfile.id);
     }
   };
 
-  if (isLoading || !currentProfile) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center space-y-4">
-           <Sprout className="w-12 h-12 text-emerald-600 animate-bounce" />
-           <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Initializing Garden...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Rendering
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       {/* --- Sidebar --- */}
