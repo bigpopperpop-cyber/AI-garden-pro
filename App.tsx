@@ -8,7 +8,6 @@ import {
   Plus, 
   Bell, 
   X, 
-  MessageSquare,
   Leaf,
   Calendar,
   Trash2,
@@ -18,7 +17,6 @@ import {
   Sun,
   Home,
   Sparkles,
-  TrendingUp,
   Upload,
   Scale,
   ExternalLink,
@@ -46,8 +44,6 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
     secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
     outline: "border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
     danger: "bg-rose-50 text-rose-600 hover:bg-rose-100",
-    amber: "bg-amber-100 text-amber-700 hover:bg-amber-200",
-    blue: "bg-blue-50 text-blue-600 hover:bg-blue-100"
   };
   return (
     <button 
@@ -85,7 +81,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
             <p className="text-xl font-black">{gardens.length}</p>
           </div>
           <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl">
-            <p className="text-[10px] font-black uppercase text-emerald-200">Total Plants</p>
+            <p className="text-[10px] font-black uppercase text-emerald-200">Total Specimens</p>
             <p className="text-xl font-black">{totalPlants}</p>
           </div>
         </div>
@@ -106,7 +102,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
                   </div>
                   <div>
                     <p className="font-bold text-slate-800">{g.name}</p>
-                    <p className="text-[10px] text-slate-400 font-black uppercase">{g.plants.length} Plants</p>
+                    <p className="text-[10px] text-slate-400 font-black uppercase">{g.plants.length} Specimens</p>
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
@@ -122,7 +118,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
         </Card>
         <Card>
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-black text-slate-800">Recent Alerts</h3>
+            <h3 className="text-lg font-black text-slate-800">Alerts & Maintenance</h3>
             <Bell size={18} className="text-slate-300" />
           </div>
           <div className="space-y-4">
@@ -135,7 +131,7 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
                 </div>
               </div>
             ))}
-            {notifications.length === 0 && <p className="text-slate-400 text-center py-6">All clear! No alerts.</p>}
+            {notifications.length === 0 && <p className="text-slate-400 text-center py-6">System normal. No active alerts.</p>}
           </div>
         </Card>
       </div>
@@ -149,7 +145,7 @@ export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
   const [gardens, setGardens] = useState<Garden[]>([]);
   const [notifications] = useState<Notification[]>([
-    { id: '1', title: 'pH Check Reminder', message: 'It has been 3 days since your last pH check.', date: new Date().toISOString(), read: false, type: 'maintenance' }
+    { id: '1', title: 'pH Check Reminder', message: 'Suggested maintenance for your hydroponic reservoir.', date: new Date().toISOString(), read: false, type: 'maintenance' }
   ]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,7 +157,7 @@ export default function App() {
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
 
-  // AI Troubleshoot state
+  // AI State
   const [aiQuery, setAiQuery] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -169,12 +165,12 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('hydro_gardens_v6');
+    const saved = localStorage.getItem('hydro_helper_v7');
     if (saved) setGardens(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('hydro_gardens_v6', JSON.stringify(gardens));
+    localStorage.setItem('hydro_helper_v7', JSON.stringify(gardens));
   }, [gardens]);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
@@ -203,7 +199,7 @@ export default function App() {
       );
       setAiResponse(advice);
     } catch (err: any) {
-      setAiResponse(`Error: Failed to connect to the botanist. Using the digital consultant works best with a stable internet connection.`);
+      setAiResponse(`The expert botanist is momentarily unreachable. Try again in a few seconds.`);
     } finally {
       setIsAiLoading(false);
     }
@@ -264,7 +260,7 @@ export default function App() {
   };
 
   const deletePlant = (pId: string) => {
-    if(!selectedGardenId || !confirm("Permanently remove this plant from your records?")) return;
+    if(!selectedGardenId || !confirm("Permanently archive this specimen?")) return;
     setGardens(gardens.map(g => g.id === selectedGardenId ? {
       ...g, plants: g.plants.filter(p => p.id !== pId)
     } : g));
@@ -273,12 +269,13 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
+      {/* --- Sidebar Navigation --- */}
       <nav className="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col p-4 md:p-6 space-y-8 z-50">
         <div className="flex items-center space-x-3 px-2">
           <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0">
             <Sprout size={24} />
           </div>
-          <span className="text-xl font-black text-emerald-600 hidden md:block">HydroHelper</span>
+          <span className="text-xl font-black text-emerald-600 hidden md:block tracking-tight">HydroHelper</span>
         </div>
         <div className="flex-1 space-y-2">
           {[
@@ -300,7 +297,7 @@ export default function App() {
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">{selectedGarden ? selectedGarden.name : view}</h1>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-              {selectedGarden ? `${selectedGarden.type} Environment` : 'Growth Intelligence Platform'}
+              {selectedGarden ? `${selectedGarden.type} Setup` : 'Precision Growing Assistant'}
             </p>
           </div>
           {view === 'gardens' && !selectedGarden && (
@@ -318,15 +315,15 @@ export default function App() {
                   {g.type === 'Indoor' ? <Home size={24} /> : <Sun size={24} />}
                 </div>
                 <h3 className="text-xl font-bold text-slate-800">{g.name}</h3>
-                <p className="text-xs text-slate-400 font-black uppercase tracking-widest">{g.plants.length} Plants • {g.type}</p>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-widest">{g.plants.length} Specimens • {g.type}</p>
                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={(e) => { e.stopPropagation(); setEditingGarden(g); setIsModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600"><Settings size={16}/></button>
+                  <button onClick={(e) => { e.stopPropagation(); setEditingGarden(g); setIsModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600 transition-colors"><Settings size={16}/></button>
                 </div>
               </Card>
             ))}
             <button onClick={() => { setEditingGarden(null); setIsModalOpen(true); }} className="border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 text-slate-300 hover:border-emerald-100 hover:text-emerald-300 transition-all outline-none">
               <Plus size={40} className="mb-2" />
-              <span className="font-black uppercase tracking-widest text-xs text-center">New Garden</span>
+              <span className="font-black uppercase tracking-widest text-xs text-center">Establish Garden</span>
             </button>
           </div>
         )}
@@ -341,8 +338,8 @@ export default function App() {
               <div className="lg:col-span-2 space-y-8">
                 <Card>
                   <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-xl font-black text-slate-800">Plant Directory</h3>
-                    <Button onClick={() => setIsPlantModalOpen(true)} variant="outline" className="text-xs py-1.5"><Plus size={16} /><span>Add Plant</span></Button>
+                    <h3 className="text-xl font-black text-slate-800">Specimen Directory</h3>
+                    <Button onClick={() => setIsPlantModalOpen(true)} variant="outline" className="text-xs py-1.5"><Plus size={16} /><span>Add Specimen</span></Button>
                   </div>
                   <div className="grid grid-cols-1 gap-4">
                     {selectedGarden.plants.map(p => (
@@ -353,40 +350,36 @@ export default function App() {
                           </div>
                           <div>
                             <h4 className="font-black text-slate-800 text-lg leading-tight">{p.name}</h4>
-                            <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Heirloom'}</p>
+                            <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Standard Breed'}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4 mt-4 md:mt-0">
-                          <div className="px-4 py-2 bg-white rounded-xl text-center min-w-[100px]">
-                            <span className="block text-[10px] text-slate-400 uppercase font-black">Phase</span>
+                          <div className="px-4 py-2 bg-white rounded-xl text-center min-w-[110px]">
+                            <span className="block text-[10px] text-slate-400 uppercase font-black">Current Phase</span>
                             <span className="text-xs font-black text-slate-700">{p.stage}</span>
                           </div>
-                          <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" title="View Full Details">
+                          <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" title="Manage Specimen">
                             <ExternalLink size={18} />
                           </button>
                         </div>
                       </div>
                     ))}
                     {selectedGarden.plants.length === 0 && (
-                      <div className="text-center py-12 opacity-30 text-xs font-black uppercase tracking-widest border-2 border-dashed border-slate-200 rounded-[2rem]">No plants logged yet</div>
+                      <div className="text-center py-12 opacity-30 text-xs font-black uppercase tracking-widest border-2 border-dashed border-slate-200 rounded-[2.5rem]">No specimens logged yet</div>
                     )}
                   </div>
                 </Card>
               </div>
               <Card className="bg-slate-900 text-white h-fit">
-                <h4 className="font-black mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Calendar size={18}/> Garden Overview</h4>
+                <h4 className="font-black mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Calendar size={18}/> Garden Profile</h4>
                 <div className="space-y-4">
                   <div className="p-4 bg-white/5 rounded-2xl">
-                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Established</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Established On</p>
                     <p className="font-bold text-emerald-400">{selectedGarden.startedDate}</p>
                   </div>
                   <div className="p-4 bg-white/5 rounded-2xl">
-                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Environment</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">System Type</p>
                     <p className="font-bold">{selectedGarden.type}</p>
-                  </div>
-                  <div className="p-4 bg-white/5 rounded-2xl">
-                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Bio-Load</p>
-                    <p className="font-bold">{selectedGarden.plants.length} Active Specimens</p>
                   </div>
                 </div>
               </Card>
@@ -399,7 +392,7 @@ export default function App() {
             <div className="text-center space-y-4 mb-12">
               <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-sm"><Stethoscope size={48} /></div>
               <h2 className="text-4xl font-black text-slate-800 tracking-tight">Ask Botanist</h2>
-              <p className="text-slate-500 font-medium">Get immediate professional AI analysis for plant symptoms.</p>
+              <p className="text-slate-500 font-medium">Expert AI analysis for plant symptoms. No setup required.</p>
             </div>
             <Card className="p-8">
               <div className="space-y-6">
@@ -414,23 +407,23 @@ export default function App() {
                     }
                   }} />
                   {!selectedImage ? (
-                    <button onClick={() => fileInputRef.current?.click()} className="w-full py-8 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-slate-300 hover:border-emerald-200 hover:text-emerald-400 transition-all outline-none">
-                      <Upload size={32} className="mb-2" />
-                      <span className="font-bold text-sm">Upload Symptom Photo</span>
+                    <button onClick={() => fileInputRef.current?.click()} className="w-full py-10 border-2 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-300 hover:border-emerald-200 hover:text-emerald-400 transition-all outline-none">
+                      <Upload size={40} className="mb-2" />
+                      <span className="font-bold text-sm">Upload Photo for Analysis</span>
                     </button>
                   ) : (
                     <div className="relative group">
-                      <img src={selectedImage.url} alt="Symptoms" className="w-full h-64 object-cover rounded-[2rem] shadow-inner" />
+                      <img src={selectedImage.url} alt="Symptoms" className="w-full h-72 object-cover rounded-[2.5rem] shadow-inner" />
                       <button onClick={() => setSelectedImage(null)} className="absolute top-4 right-4 p-2 bg-rose-500 text-white rounded-full shadow-lg hover:scale-110 transition-transform"><X size={20} /></button>
                     </div>
                   )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Observations</label>
-                  <textarea value={aiQuery} onChange={e => setAiQuery(e.target.value)} placeholder="Describe color changes, spots, drooping, or pest activity..." className="w-full h-32 p-6 bg-slate-50 border border-slate-100 rounded-[2rem] outline-none focus:border-emerald-500 text-slate-700 resize-none leading-relaxed" />
+                  <textarea value={aiQuery} onChange={e => setAiQuery(e.target.value)} placeholder="E.g. Yellowing tips, slow growth, or white spots..." className="w-full h-32 p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] outline-none focus:border-emerald-500 text-slate-700 resize-none leading-relaxed" />
                 </div>
                 <Button onClick={handleAiTroubleshoot} disabled={isAiLoading} className="w-full py-5 text-xl shadow-lg">
-                  {isAiLoading ? <div className="flex items-center space-x-2"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div><span>Analyzing Data...</span></div> : <><Sparkles size={20} /><span>Run Diagnosis</span></>}
+                  {isAiLoading ? <div className="flex items-center space-x-2"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div><span>Consulting Expert...</span></div> : <><Sparkles size={20} /><span>Consult Botanist</span></>}
                 </Button>
               </div>
             </Card>
@@ -450,7 +443,7 @@ export default function App() {
           <div className="max-w-xl mx-auto py-10">
             <Card className="p-10 text-center">
               <div className="w-16 h-16 bg-slate-100 text-slate-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Settings size={32} /></div>
-              <h3 className="text-2xl font-black mb-8">System Control</h3>
+              <h3 className="text-2xl font-black mb-8">Growth Settings</h3>
               <div className="space-y-4">
                 <Button variant="secondary" className="w-full" onClick={() => {
                    const data = JSON.stringify(gardens, null, 2);
@@ -458,10 +451,10 @@ export default function App() {
                    const url = URL.createObjectURL(blob);
                    const a = document.createElement('a');
                    a.href = url;
-                   a.download = `hydrohelper-backup-${new Date().toISOString().split('T')[0]}.json`;
+                   a.download = `hydro-backup-${new Date().toISOString().split('T')[0]}.json`;
                    a.click();
-                }}><Download size={18}/><span>Backup Local Data</span></Button>
-                <Button variant="danger" className="w-full" onClick={() => { if(confirm("This will permanently delete ALL garden and plant records. Proceed?")) { localStorage.clear(); window.location.reload(); } }}><Trash2 size={18}/><span>Wipe Database</span></Button>
+                }}><Download size={18}/><span>Backup Growth Data</span></Button>
+                <Button variant="danger" className="w-full" onClick={() => { if(confirm("This will permanently delete ALL specimen and garden data. Continue?")) { localStorage.clear(); window.location.reload(); } }}><Trash2 size={18}/><span>Wipe Local Records</span></Button>
               </div>
             </Card>
           </div>
@@ -470,19 +463,20 @@ export default function App() {
 
       {/* --- MODALS --- */}
 
-      {/* Highly Organized Plant Detail Modal */}
+      {/* Structured Plant Detail Modal */}
       {isPlantDetailOpen && inspectedPlant && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
            <div className="bg-white rounded-[3.5rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
               <div className="p-10 pb-6 flex justify-between items-start bg-slate-50/50">
                  <div className="flex items-center space-x-6">
-                    <div className="w-20 h-20 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-lg shadow-emerald-100">
+                    <div className="w-20 h-20 bg-emerald-600 text-white rounded-[2.5rem] flex items-center justify-center shadow-lg shadow-emerald-100">
                        <Sprout size={40} />
                     </div>
                     <div>
                        <h3 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-1">{inspectedPlant.name}</h3>
                        <div className="flex items-center gap-2">
                           <span className="text-lg text-slate-500 font-bold">{inspectedPlant.variety || 'Heirloom Variety'}</span>
+                          <span className="px-2 py-0.5 bg-emerald-100 text-[10px] text-emerald-700 rounded-md font-black uppercase">Specimen</span>
                        </div>
                     </div>
                  </div>
@@ -490,32 +484,32 @@ export default function App() {
               </div>
 
               <div className="px-10 overflow-y-auto space-y-8 pb-10 pt-8">
-                 {/* Plant Dashboard Stats */}
+                 {/* Specimen Dashboard Grid */}
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col items-center text-center">
-                       <Calendar size={20} className="text-slate-300 mb-2" />
+                    <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 text-center">
+                       <Calendar size={20} className="text-slate-300 mx-auto mb-2" />
                        <p className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Planted On</p>
                        <p className="font-black text-slate-700">{inspectedPlant.plantedDate}</p>
                     </div>
-                    <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex flex-col items-center text-center">
-                       <Clock size={20} className="text-blue-300 mb-2" />
+                    <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 text-center">
+                       <Clock size={20} className="text-blue-300 mx-auto mb-2" />
                        <p className="text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">Specimen Age</p>
                        <p className="font-black text-blue-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
                     </div>
-                    <div className="p-6 bg-emerald-50 rounded-[2.5rem] border border-emerald-100 flex flex-col items-center text-center">
-                       <Scale size={20} className="text-emerald-300 mb-2" />
-                       <p className="text-[10px] font-black uppercase text-emerald-600 mb-1 tracking-widest">Total Yield</p>
+                    <div className="p-6 bg-emerald-50 rounded-[2.5rem] border border-emerald-100 text-center">
+                       <Scale size={20} className="text-emerald-300 mx-auto mb-2" />
+                       <p className="text-[10px] font-black uppercase text-emerald-600 mb-1 tracking-widest">Lifetime Yield</p>
                        <p className="font-black text-emerald-700">{inspectedPlant.harvests.reduce((sum, h) => sum + h.amount, 0)}g</p>
                     </div>
                  </div>
 
-                 {/* Phase Quick Switcher */}
+                 {/* Growth Phase Tracker */}
                  <div className="space-y-4">
                     <div className="flex items-center gap-2">
                        <Activity size={18} className="text-emerald-600" />
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Current Growth Phase</label>
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Growth Phase Control</label>
                     </div>
-                    <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-3xl">
+                    <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-[2rem]">
                        {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((s) => (
                           <button 
                             key={s} 
@@ -528,30 +522,27 @@ export default function App() {
                     </div>
                  </div>
 
-                 {/* Harvest History List */}
+                 {/* Yield Ledger */}
                  <div className="space-y-6">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                       <h4 className="text-xl font-black text-slate-800 flex items-center gap-2"><History size={24} className="text-emerald-600" /> Harvest Records</h4>
-                       <Button variant="outline" className="text-xs py-1.5" onClick={() => setIsHarvestModalOpen(true)}><Plus size={16} /><span>Record Yield</span></Button>
+                       <h4 className="text-xl font-black text-slate-800 flex items-center gap-2"><History size={24} className="text-emerald-600" /> Yield Ledger</h4>
+                       <Button variant="outline" className="text-xs py-1.5" onClick={() => setIsHarvestModalOpen(true)}><Plus size={16} /><span>Log Yield</span></Button>
                     </div>
                     <div className="space-y-3">
                        {inspectedPlant.harvests.length > 0 ? inspectedPlant.harvests.map(h => (
-                          <div key={h.id} className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-[2rem] group hover:border-emerald-200 transition-all shadow-sm">
+                          <div key={h.id} className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-[2.2rem] group hover:border-emerald-200 transition-all shadow-sm">
                              <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner"><Scale size={20} /></div>
+                                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><Scale size={20} /></div>
                                 <div>
-                                   <p className="font-black text-slate-800 text-lg">{h.amount}g Harvested</p>
-                                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                                      <Calendar size={10} /> {h.date}
-                                   </p>
+                                   <p className="font-black text-slate-800 text-lg">{h.amount}g Weight</p>
+                                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{h.date}</p>
                                 </div>
                              </div>
                              <button onClick={() => { setGardens(gardens.map(g => g.id === selectedGardenId ? { ...g, plants: g.plants.map(p => p.id === inspectedPlant.id ? { ...p, harvests: p.harvests.filter(hr => hr.id !== h.id) } : p) } : g)); }} className="opacity-0 group-hover:opacity-100 p-2 text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={18} /></button>
                           </div>
                        )) : (
-                          <div className="text-center py-12 bg-slate-50 border-2 border-dashed border-slate-100 rounded-[3rem] opacity-40">
-                             <Scale size={32} className="mx-auto mb-2 text-slate-300" />
-                             <p className="text-xs font-black uppercase tracking-widest">No harvest records found.</p>
+                          <div className="text-center py-12 bg-slate-50 border-2 border-dashed border-slate-100 rounded-[3rem] opacity-30">
+                             <p className="text-xs font-black uppercase tracking-widest">No yield data logged for this specimen.</p>
                           </div>
                        )}
                     </div>
@@ -559,10 +550,10 @@ export default function App() {
               </div>
               
               <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                 <button onClick={() => deletePlant(inspectedPlant.id)} className="text-rose-500 hover:text-rose-700 font-black text-xs uppercase flex items-center gap-2 outline-none">
-                    <Trash2 size={16} /> Delete Specimen
+                 <button onClick={() => deletePlant(inspectedPlant.id)} className="text-rose-400 hover:text-rose-600 font-black text-[10px] uppercase flex items-center gap-2 outline-none transition-colors">
+                    <Trash2 size={16} /> Archive Specimen
                  </button>
-                 <Button onClick={() => setIsPlantDetailOpen(false)} className="px-8">Close Details</Button>
+                 <Button onClick={() => setIsPlantDetailOpen(false)} className="px-10">Done</Button>
               </div>
            </div>
         </div>
@@ -574,17 +565,17 @@ export default function App() {
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-10">
-                 <h3 className="text-3xl font-black text-slate-800">{editingGarden ? 'Update Garden' : 'Launch Garden'}</h3>
-                 <button onClick={() => setIsModalOpen(false)} className="text-slate-300 hover:text-slate-500"><X size={24}/></button>
+                 <h3 className="text-3xl font-black text-slate-800">{editingGarden ? 'Edit Garden' : 'New Garden'}</h3>
+                 <button onClick={() => setIsModalOpen(false)} className="text-slate-300 hover:text-slate-500 transition-colors"><X size={24}/></button>
               </div>
               <form onSubmit={saveGarden} className="space-y-6">
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Display Name</label>
-                    <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. Basil Tower Hydro" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold" />
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Garden Name</label>
+                    <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. Balcony Veggie Rack" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 font-bold" />
                  </div>
                  <div className="grid grid-cols-2 gap-6">
                     <div>
-                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Environment</label>
+                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Setup Type</label>
                        <select name="gtype" defaultValue={editingGarden?.type || 'Indoor'} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none"><option>Indoor</option><option>Outdoor</option></select>
                     </div>
                     <div>
@@ -593,11 +584,10 @@ export default function App() {
                     </div>
                  </div>
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Garden Context (Optional)</label>
-                    <textarea name="gdesc" defaultValue={editingGarden?.description} placeholder="Notes about your lighting or nutrient setup..." className="w-full h-24 p-4 bg-slate-50 border border-slate-100 rounded-2xl resize-none outline-none focus:border-emerald-500 font-medium" />
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">System Description</label>
+                    <textarea name="gdesc" defaultValue={editingGarden?.description} placeholder="Lighting, nutrient line, or equipment used..." className="w-full h-24 p-4 bg-slate-50 border border-slate-100 rounded-2xl resize-none outline-none focus:border-emerald-500 font-medium" />
                  </div>
                  <Button type="submit" className="w-full py-5 text-xl shadow-lg">Save Garden Profile</Button>
-                 <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-2 mt-2">Discard Changes</button>
               </form>
            </div>
         </div>
@@ -606,12 +596,12 @@ export default function App() {
       {isPlantModalOpen && (
         <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
-              <h3 className="text-3xl font-black text-slate-800 mb-10">Add Specimen</h3>
+              <h3 className="text-3xl font-black text-slate-800 mb-10">Log Specimen</h3>
               <form onSubmit={savePlant} className="space-y-6">
-                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Common Name</label><input name="pname" placeholder="E.g. Lettuce" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" /></div>
-                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Variety/Genetics</label><input name="pvariety" placeholder="E.g. Butterhead" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" /></div>
+                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Common Name</label><input name="pname" placeholder="E.g. Genovese Basil" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" /></div>
+                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Strain/Variety</label><input name="pvariety" placeholder="E.g. Heirloom Purple" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" /></div>
                  <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Germination Date</label><input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black" /></div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg">Log Specimen</Button>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg">Register Specimen</Button>
                  <button type="button" onClick={() => setIsPlantModalOpen(false)} className="w-full text-center text-slate-400 font-bold py-2 mt-2 uppercase text-[10px] tracking-widest">Cancel</button>
               </form>
            </div>
@@ -621,17 +611,17 @@ export default function App() {
       {isHarvestModalOpen && (
         <div className="fixed inset-0 z-[220] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
            <div className="bg-white rounded-[3rem] w-full max-w-md shadow-2xl p-10 animate-in zoom-in-95">
-              <h3 className="text-3xl font-black text-slate-800 mb-10">Record Yield</h3>
+              <h3 className="text-3xl font-black text-slate-800 mb-10">Log Yield</h3>
               <form onSubmit={saveHarvest} className="space-y-6">
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Net Weight (Grams)</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Weight (Grams)</label>
                     <div className="relative">
                        <input name="hamount" type="number" step="0.1" placeholder="0.0" required className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2rem] text-3xl font-black outline-none focus:border-emerald-500 pr-16" />
-                       <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xl">g</span>
+                       <span className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xl">g</span>
                     </div>
                  </div>
-                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Harvest Event Date</label><input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black" /></div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg">Confirm Entry</Button>
+                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Date</label><input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black" /></div>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg">Confirm Harvest</Button>
                  <button type="button" onClick={() => setIsHarvestModalOpen(false)} className="w-full text-center text-slate-400 font-bold py-2 mt-2 uppercase text-[10px] tracking-widest">Cancel</button>
               </form>
            </div>

@@ -7,13 +7,12 @@ import { GoogleGenAI } from "@google/genai";
  */
 export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
   try {
-    // In this environment, the API key is handled automatically.
-    // We proceed directly to using the high-performance Flash model.
+    // We use the system-provided API key automatically.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const parts: any[] = [];
     
-    // Add image if provided
+    // Add image if provided for visual diagnosis
     if (image) {
       parts.push({
         inlineData: {
@@ -23,7 +22,7 @@ export const getExpertAdvice = async (query: string, image?: { data: string, mim
       });
     }
     
-    // Add text prompt
+    // Add text prompt with expert system instructions
     parts.push({ 
       text: query || "Please examine this plant's health and provide a professional assessment." 
     });
@@ -41,8 +40,8 @@ export const getExpertAdvice = async (query: string, image?: { data: string, mim
   } catch (error: any) {
     console.error("Botanist API Error:", error);
     
-    // Friendly fallback message that hides technical configuration details
-    return "The botanist is currently out in the field. Generally, for indoor plants, check your pH levels (5.5-6.5) and ensure adequate lighting. Please try your digital consultation again shortly!";
+    // Friendly fallback message for beginner growers
+    return "The botanist is currently out in the field. Generally, for indoor hydroponics, ensure your pH is between 5.5-6.5, your water temperature is below 72°F (22°C), and your lighting is consistent. Please try the digital consultation again shortly!";
   }
 };
 
@@ -54,7 +53,7 @@ export const getDailyGrowerTip = async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: "Provide one short, professional tip (max 10 words) for a beginner hydroponic grower.",
+      contents: "Provide one short, professional tip (max 10 words) for a beginner indoor hydroponic grower.",
       config: { temperature: 1.0 }
     });
     return response.text?.trim() || "Consistently monitor your water's pH levels.";
