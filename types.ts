@@ -2,6 +2,12 @@
 export type GardenType = 'Indoor' | 'Outdoor';
 export type LifecycleStage = 'Germination' | 'Vegetative' | 'Flowering' | 'Fruiting' | 'Harvested';
 
+export interface UserProfile {
+  id: string;
+  name: string;
+  avatarColor: string;
+}
+
 export interface HarvestRecord {
   id: string;
   date: string;
@@ -43,4 +49,4 @@ export interface Notification {
   type: 'maintenance' | 'alert' | 'tip';
 }
 
-export type ViewState = 'dashboard' | 'gardens' | 'troubleshoot' | 'reports' | 'settings';
+export type ViewState = 'dashboard' | 'gardens' | 'troubleshoot' | 'profiles' | 'settings';
