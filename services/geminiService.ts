@@ -3,16 +3,15 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * Sends a query and optional image to the Gemini API for plant diagnosis.
- * Uses gemini-3-pro-preview for high-quality complex reasoning.
+ * Uses gemini-3-flash-preview for the best balance of vision and speed.
  */
 export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
   try {
-    // Always create a new instance to ensure we use the latest injected API key
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const parts: any[] = [];
     
-    // Vision input (if provided)
+    // Add image if provided
     if (image) {
       parts.push({
         inlineData: {
@@ -22,42 +21,40 @@ export const getExpertAdvice = async (query: string, image?: { data: string, mim
       });
     }
     
-    // Text prompt
+    // Add text prompt
     parts.push({ 
-      text: query || "Please analyze this plant's health and provide professional cultivation advice." 
+      text: query || "Please examine this plant's health and provide a professional assessment." 
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: { parts },
       config: {
-        systemInstruction: "You are 'HydroBot', a master botanist. Provide clear, professional, and beginner-friendly advice for hydroponic/aquaponic growers. If an image is provided, identify any pests or deficiencies. Provide a numbered list of fixes. Keep response under 150 words.",
+        systemInstruction: "You are 'HydroBot', a world-class botanist and indoor growing expert. Provide beginner-friendly, concise, and professional advice. Diagnose visible issues from photos and provide 3-5 actionable steps. Keep response under 150 words.",
         temperature: 0.7,
       }
     });
 
-    return response.text || "The botanist is silent. Please try rephrasing.";
+    return response.text || "I'm processing the data but couldn't generate a report. Please try a different query.";
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    
-    if (error?.message?.includes('API Key')) {
-      throw new Error("API Key required. Please use the 'Setup AI Access' button.");
-    }
-    
-    throw error;
+    console.error("Botanist API Error:", error);
+    return "The botanist is currently unavailable. Please check your connection and try again.";
   }
 };
 
+/**
+ * Generates a quick daily tip for the dashboard.
+ */
 export const getDailyGrowerTip = async () => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: "Provide one short, professional tip (max 12 words) for an indoor plant grower.",
-      config: { temperature: 0.9 }
+      contents: "Provide one short, professional tip (max 10 words) for a beginner hydroponic grower.",
+      config: { temperature: 1.0 }
     });
-    return response.text?.trim() || "Consistently monitor your water's pH levels.";
+    return response.text?.trim() || "Check your reservoir water levels daily.";
   } catch (error) {
-    return "Plants thrive on consistent care and attention.";
+    return "Healthy roots make for happy plants.";
   }
 };
