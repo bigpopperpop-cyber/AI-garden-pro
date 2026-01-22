@@ -1,4 +1,3 @@
-
 export type GardenType = 'Indoor' | 'Outdoor';
 export type LifecycleStage = 'Germination' | 'Vegetative' | 'Flowering' | 'Fruiting' | 'Harvested';
 
@@ -23,6 +22,12 @@ export interface HarvestRecord {
   unit: string;
 }
 
+export interface GardenNote {
+  id: string;
+  date: string;
+  content: string;
+}
+
 export interface Plant {
   id: string;
   name: string;
@@ -31,12 +36,7 @@ export interface Plant {
   stage: LifecycleStage;
   harvests: HarvestRecord[];
   projection?: GrowthProjection;
-}
-
-export interface GardenNote {
-  id: string;
-  date: string;
-  content: string;
+  notes: GardenNote[];
 }
 
 export interface Garden {

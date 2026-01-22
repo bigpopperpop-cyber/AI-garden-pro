@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -20,14 +19,15 @@ import {
   CheckCircle2,
   Sparkles,
   TrendingUp,
-  Loader2
+  Loader2,
+  MessageSquare,
+  Send
 } from 'lucide-react';
-import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection } from './types.ts';
+import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
-// Fix: Modified Card component props type to allow 'key' and other standard React props by using any
 const Card = ({ children, className = "", onClick }: any) => (
   <div 
     onClick={onClick}
@@ -165,6 +165,8 @@ export default function App() {
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
+  const [plantDetailTab, setPlantDetailTab] = useState<'overview' | 'notes'>('overview');
+  const [newNoteText, setNewNoteText] = useState('');
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
@@ -236,7 +238,8 @@ export default function App() {
       plantedDate, 
       stage: 'Germination', 
       harvests: [],
-      projection: projection || undefined
+      projection: projection || undefined,
+      notes: []
     };
 
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
@@ -245,6 +248,38 @@ export default function App() {
     
     setIsAiLoading(false);
     setIsPlantModalOpen(false);
+  };
+
+  const addPlantNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGardenId || !selectedPlantId || !newNoteText.trim()) return;
+
+    const newNote: GardenNote = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleString(),
+      content: newNoteText.trim()
+    };
+
+    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+      ...g,
+      plants: g.plants.map(p => p.id === selectedPlantId ? {
+        ...p,
+        notes: [newNote, ...(p.notes || [])]
+      } : p)
+    } : g));
+    
+    setNewNoteText('');
+  };
+
+  const deletePlantNote = (noteId: string) => {
+    if (!selectedGardenId || !selectedPlantId) return;
+    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+      ...g,
+      plants: g.plants.map(p => p.id === selectedPlantId ? {
+        ...p,
+        notes: (p.notes || []).filter(n => n.id !== noteId)
+      } : p)
+    } : g));
   };
 
   const updateStage = (stage: LifecycleStage) => {
@@ -360,7 +395,7 @@ export default function App() {
                             <span className="block text-[10px] text-slate-400 uppercase font-black">Phase</span>
                             <span className="text-xs font-black text-slate-700">{p.stage}</span>
                           </div>
-                          <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" title="Manage Specimen">
+                          <button onClick={() => { setSelectedPlantId(p.id); setPlantDetailTab('overview'); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" title="Manage Specimen">
                             <ExternalLink size={18} />
                           </button>
                         </div>
@@ -413,100 +448,171 @@ export default function App() {
       {isPlantDetailOpen && inspectedPlant && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
            <div className="bg-white rounded-[3.5rem] w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
-              <div className="p-10 pb-6 flex justify-between items-start bg-slate-50/50">
-                 <div className="flex items-center space-x-6">
-                    <div className="w-20 h-20 bg-emerald-600 text-white rounded-[2.5rem] flex items-center justify-center shadow-lg">
-                       <Sprout size={40} />
+              <div className="p-10 pb-0 flex justify-between items-start bg-slate-50/50">
+                 <div className="flex items-center space-x-6 pb-6">
+                    <div className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-lg">
+                       <Sprout size={32} />
                     </div>
                     <div>
-                       <h3 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-1">{inspectedPlant.name}</h3>
+                       <h3 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-1">{inspectedPlant.name}</h3>
                        <div className="flex items-center gap-2">
-                          <span className="text-lg text-slate-500 font-bold">{inspectedPlant.variety || 'Heirloom'}</span>
+                          <span className="text-sm text-slate-500 font-bold uppercase tracking-widest">{inspectedPlant.variety || 'Heirloom'}</span>
                        </div>
                     </div>
                  </div>
-                 <button onClick={() => setIsPlantDetailOpen(false)} className="p-3 bg-white text-slate-400 hover:text-slate-600 rounded-2xl shadow-sm outline-none transition-all"><X size={32}/></button>
+                 <button onClick={() => setIsPlantDetailOpen(false)} className="p-3 bg-white text-slate-400 hover:text-slate-600 rounded-2xl shadow-sm outline-none transition-all"><X size={24}/></button>
               </div>
 
-              <div className="px-10 overflow-y-auto space-y-8 pb-10 pt-8">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 text-center">
-                       <Calendar size={20} className="text-slate-300 mx-auto mb-2" />
-                       <p className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Planted</p>
-                       <p className="font-black text-slate-700">{inspectedPlant.plantedDate}</p>
-                    </div>
-                    <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 text-center">
-                       <Clock size={20} className="text-blue-300 mx-auto mb-2" />
-                       <p className="text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">Age</p>
-                       <p className="font-black text-blue-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
-                    </div>
-                 </div>
+              {/* Tabs Navigation */}
+              <div className="flex px-10 border-b border-slate-100 bg-slate-50/50">
+                 <button 
+                  onClick={() => setPlantDetailTab('overview')}
+                  className={`px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${plantDetailTab === 'overview' ? 'text-emerald-600' : 'text-slate-400'}`}
+                 >
+                    Specimen Overview
+                    {plantDetailTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full" />}
+                 </button>
+                 <button 
+                  onClick={() => setPlantDetailTab('notes')}
+                  className={`px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${plantDetailTab === 'notes' ? 'text-emerald-600' : 'text-slate-400'}`}
+                 >
+                    Care Logs
+                    {inspectedPlant.notes?.length > 0 && <span className="ml-2 bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full text-[10px]">{inspectedPlant.notes.length}</span>}
+                    {plantDetailTab === 'notes' && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full" />}
+                 </button>
+              </div>
 
-                 {/* Growth Timeline Component */}
-                 {inspectedPlant.projection && (
-                   <div className="bg-emerald-50/30 rounded-[2.5rem] p-8 border border-emerald-100">
-                      <div className="flex items-center gap-2 mb-6">
-                         <Sparkles size={18} className="text-emerald-600" />
-                         <h4 className="text-sm font-black uppercase text-emerald-600 tracking-widest">AI Predicted Growth Timeline</h4>
-                      </div>
-                      
-                      <div className="relative">
-                         <div className="absolute top-1/2 left-0 w-full h-1 bg-emerald-100 -translate-y-1/2 rounded-full"></div>
-                         <div className="relative flex justify-between">
-                            {[
-                               { label: 'Germination', date: inspectedPlant.projection.germinationDate },
-                               { label: 'Veg Start', date: inspectedPlant.projection.vegetativeDate },
-                               { label: 'Bloom', date: inspectedPlant.projection.floweringDate },
-                               { label: 'Harvest', date: inspectedPlant.projection.harvestDate }
-                            ].map((milestone, idx) => {
-                               const isPassed = new Date(milestone.date) <= new Date();
-                               return (
-                                 <div key={idx} className="flex flex-col items-center z-10">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-colors ${isPassed ? 'bg-emerald-600 text-white shadow-lg' : 'bg-white border-2 border-emerald-100 text-emerald-200'}`}>
-                                       {isPassed ? <CheckCircle2 size={16} /> : <div className="w-2 h-2 rounded-full bg-current" />}
-                                    </div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 text-center leading-tight mb-1">{milestone.label}</p>
-                                    <p className={`text-[10px] font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-400'}`}>{milestone.date}</p>
-                                 </div>
-                               );
-                            })}
-                         </div>
+              <div className="px-10 overflow-y-auto flex-1 space-y-8 pb-10 pt-8">
+                 {plantDetailTab === 'overview' ? (
+                   <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 text-center">
+                          <Calendar size={20} className="text-slate-300 mx-auto mb-2" />
+                          <p className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Planted</p>
+                          <p className="font-black text-slate-700">{inspectedPlant.plantedDate}</p>
+                        </div>
+                        <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 text-center">
+                          <Clock size={20} className="text-blue-300 mx-auto mb-2" />
+                          <p className="text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">Age</p>
+                          <p className="font-black text-blue-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
+                        </div>
                       </div>
 
-                      <div className="mt-8 flex items-start gap-3 bg-white p-4 rounded-2xl border border-emerald-50">
-                         <TrendingUp size={16} className="text-emerald-500 mt-0.5" />
-                         <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                            <span className="font-black text-emerald-700 uppercase mr-1">Expert Tip:</span>
-                            {inspectedPlant.projection.notes}
-                         </p>
+                      {/* Growth Timeline Component */}
+                      {inspectedPlant.projection && (
+                        <div className="bg-emerald-50/30 rounded-[2.5rem] p-8 border border-emerald-100">
+                            <div className="flex items-center gap-2 mb-6">
+                              <Sparkles size={18} className="text-emerald-600" />
+                              <h4 className="text-sm font-black uppercase text-emerald-600 tracking-widest">AI Predicted Growth Timeline</h4>
+                            </div>
+                            
+                            <div className="relative">
+                              <div className="absolute top-1/2 left-0 w-full h-1 bg-emerald-100 -translate-y-1/2 rounded-full"></div>
+                              <div className="relative flex justify-between">
+                                  {[
+                                    { label: 'Germination', date: inspectedPlant.projection.germinationDate },
+                                    { label: 'Veg Start', date: inspectedPlant.projection.vegetativeDate },
+                                    { label: 'Bloom', date: inspectedPlant.projection.floweringDate },
+                                    { label: 'Harvest', date: inspectedPlant.projection.harvestDate }
+                                  ].map((milestone, idx) => {
+                                    const isPassed = new Date(milestone.date) <= new Date();
+                                    return (
+                                      <div key={idx} className="flex flex-col items-center z-10">
+                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-colors ${isPassed ? 'bg-emerald-600 text-white shadow-lg' : 'bg-white border-2 border-emerald-100 text-emerald-200'}`}>
+                                            {isPassed ? <CheckCircle2 size={16} /> : <div className="w-2 h-2 rounded-full bg-current" />}
+                                          </div>
+                                          <p className="text-[10px] font-black uppercase text-slate-400 text-center leading-tight mb-1">{milestone.label}</p>
+                                          <p className={`text-[10px] font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-400'}`}>{milestone.date}</p>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+
+                            <div className="mt-8 flex items-start gap-3 bg-white p-4 rounded-2xl border border-emerald-50">
+                              <TrendingUp size={16} className="text-emerald-500 mt-0.5" />
+                              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                                  <span className="font-black text-emerald-700 uppercase mr-1">Expert Tip:</span>
+                                  {inspectedPlant.projection.notes}
+                              </p>
+                            </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <Clock size={18} className="text-emerald-600" />
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Update Current Phase Manually</label>
+                        </div>
+                        <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-[2rem]">
+                            {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((s) => (
+                              <button 
+                                key={s} 
+                                onClick={() => updateStage(s as LifecycleStage)}
+                                className={`flex-1 min-w-[100px] px-4 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${inspectedPlant.stage === s ? 'bg-emerald-600 text-white shadow-md' : 'bg-transparent text-slate-400 hover:bg-white hover:text-slate-600'}`}
+                              >
+                                  {s}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                   </>
+                 ) : (
+                   <div className="space-y-8 animate-in slide-in-from-right-4">
+                      {/* Note Input */}
+                      <form onSubmit={addPlantNote} className="relative">
+                        <textarea 
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                          placeholder="Log specimen progress, observations, or feeding changes..."
+                          className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] outline-none focus:border-emerald-500 font-medium text-slate-700 resize-none min-h-[140px] pr-16"
+                        />
+                        <button 
+                          type="submit"
+                          disabled={!newNoteText.trim()}
+                          className="absolute bottom-4 right-4 w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
+                        >
+                          <Send size={20} />
+                        </button>
+                      </form>
+
+                      {/* Notes List */}
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Historical Care Logs</h4>
+                        {(inspectedPlant.notes || []).length > 0 ? (
+                          (inspectedPlant.notes || []).map(note => (
+                            <div key={note.id} className="group relative bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-emerald-100 transition-all">
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">{note.date}</span>
+                                <button 
+                                  onClick={() => deletePlantNote(note.id)}
+                                  className="text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                              <p className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-16 px-10 border-2 border-dashed border-slate-50 rounded-[3rem]">
+                             <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                               <MessageSquare size={24} />
+                             </div>
+                             <p className="text-slate-400 text-sm font-bold">No logs recorded for this specimen.</p>
+                             <p className="text-slate-300 text-xs mt-1">Start by adding your first observation above.</p>
+                          </div>
+                        )}
                       </div>
                    </div>
                  )}
-
-                 <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                       <Clock size={18} className="text-emerald-600" />
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Update Current Phase Manually</label>
-                    </div>
-                    <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-[2rem]">
-                       {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((s) => (
-                          <button 
-                            key={s} 
-                            onClick={() => updateStage(s as LifecycleStage)}
-                            className={`flex-1 min-w-[100px] px-4 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${inspectedPlant.stage === s ? 'bg-emerald-600 text-white shadow-md' : 'bg-transparent text-slate-400 hover:bg-white hover:text-slate-600'}`}
-                          >
-                             {s}
-                          </button>
-                       ))}
-                    </div>
-                 </div>
               </div>
               
               <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                  <button onClick={() => deletePlant(inspectedPlant.id)} className="text-rose-400 hover:text-rose-600 font-black text-[10px] uppercase flex items-center gap-2 outline-none">
                     <Trash2 size={16} /> Delete Specimen
                  </button>
-                 <Button onClick={() => setIsPlantDetailOpen(false)} className="px-10">Done</Button>
+                 <Button onClick={() => setIsPlantDetailOpen(false)} className="px-10">Close Detail</Button>
               </div>
            </div>
         </div>
