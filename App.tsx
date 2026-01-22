@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Sprout, 
@@ -20,7 +19,6 @@ import {
   CheckCircle2,
   Sparkles,
   TrendingUp,
-  AlertCircle,
   Loader2
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection } from './types.ts';
@@ -28,8 +26,8 @@ import { predictGrowthTimeline } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
-// Fix: Included 'key' in the props type definition to allow passing it when rendering in a list
-const Card = ({ children, className = "", onClick }: { children?: React.ReactNode, className?: string, onClick?: () => void, key?: React.Key }) => (
+// Added key to the prop type definition to satisfy TypeScript when Card is used within map() loops.
+const Card = ({ children, className = "", onClick }: { children?: React.ReactNode, className?: string, onClick?: () => void, key?: any }) => (
   <div 
     onClick={onClick}
     className={`bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 ${className}`}

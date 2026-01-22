@@ -1,8 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GrowthProjection } from "../types.ts";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 /**
  * Predicts the growth timeline for a specific plant variety.
  */
@@ -12,6 +10,7 @@ export const predictGrowthTimeline = async (
   plantedDate: string
 ): Promise<GrowthProjection | null> => {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Predict the botanical growth stages for a plant named "${name}" (variety: "${variety}") planted on ${plantedDate}. 
