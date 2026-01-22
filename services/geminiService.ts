@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { GrowthProjection } from "../types.ts";
 
@@ -40,35 +39,5 @@ export const predictGrowthTimeline = async (
   } catch (error) {
     console.error("AI Prediction failed:", error);
     return null;
-  }
-};
-
-/**
- * Expert troubleshooting advice.
- */
-export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
-  try {
-    const contents: any[] = [{ text: query }];
-    if (image) {
-      contents.push({
-        inlineData: {
-          data: image.data,
-          mimeType: image.mimeType,
-        },
-      });
-    }
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: { parts: contents },
-      config: {
-        systemInstruction: "You are a world-class hydroponic and aquaponic consultant. Provide concise, actionable advice for indoor gardeners.",
-      },
-    });
-
-    return response.text || "I'm sorry, I couldn't generate a response. Please check your parameters.";
-  } catch (error) {
-    console.error("Expert advice failed:", error);
-    return "I'm having trouble connecting to the botanical database. Please check your internet or try again later.";
   }
 };

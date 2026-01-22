@@ -28,7 +28,8 @@ import { predictGrowthTimeline } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
-const Card = ({ children, className = "", onClick }: { children?: React.ReactNode, className?: string, onClick?: () => void }) => (
+// Fix: Included 'key' in the props type definition to allow passing it when rendering in a list
+const Card = ({ children, className = "", onClick }: { children?: React.ReactNode, className?: string, onClick?: () => void, key?: React.Key }) => (
   <div 
     onClick={onClick}
     className={`bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 ${className}`}
