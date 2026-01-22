@@ -1,80 +1,74 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
+import { GrowthProjection } from "../types.ts";
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
- * Local Expert Knowledge Base (Zero-Key AI)
- * Deterministic botanical engine for instant, keyless troubleshooting.
+ * Predicts the growth timeline for a specific plant variety.
  */
-const getLocalExpertAdvice = (query: string): string => {
-  const q = query.toLowerCase();
-  
-  const rules = [
-    {
-      keys: ["yellow", "pale", "nitrogen"],
-      advice: "LOCAL EXPERT: Likely Nitrogen deficiency or pH lock-out. Check pH (5.5-6.5). If pH is correct, increase Nitrogen PPM."
-    },
-    {
-      keys: ["brown", "burnt", "tips", "dry"],
-      advice: "LOCAL EXPERT: Suggests Nutrient Burn (high EC) or low humidity. Flush with pH-neutral water and reduce nutrient strength by 25%."
-    },
-    {
-      keys: ["wilting", "droop", "roots", "slimy"],
-      advice: "LOCAL EXPERT: Warning: Possible Root Rot (Pythium). Oxygenate your reservoir immediately and check water temps (>72°F is dangerous)."
-    },
-    {
-      keys: ["spots", "rust", "calcium", "magnesium"],
-      advice: "LOCAL EXPERT: Classic Cal-Mag deficiency. Hydroponic setups often lack these. Supplement with 2ml/gal of Cal-Mag solution."
-    },
-    {
-      keys: ["bugs", "spider", "mites", "pests"],
-      advice: "LOCAL EXPERT: Pest infestation detected. Quarantine the plant. Use Neem oil or insecticidal soap during the dark cycle only."
-    },
-    {
-      keys: ["curl", "claw", "downward"],
-      advice: "LOCAL EXPERT: 'Canoeing' or leaf clawing is often caused by excessive Nitrogen or heat stress. Dim your lights or move fans."
-    }
-  ];
-
-  const matched = rules.find(r => r.keys.some(k => q.includes(k)));
-  
-  if (matched) return matched.advice;
-
-  return "LOCAL EXPERT: Your description suggests a general environmental imbalance. Ensure the 'Big Three' are calibrated: pH (5.8), Light Height (18-24\"), and Reservoir Temps (<70°F). Provide more symptom details for a deeper scan.";
-};
-
-export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
+export const predictGrowthTimeline = async (
+  name: string,
+  variety: string,
+  plantedDate: string
+): Promise<GrowthProjection | null> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const parts: any[] = [];
-    if (image) parts.push({ inlineData: { data: image.data, mimeType: image.mimeType } });
-    parts.push({ text: query || "Examine plant health." });
-
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: { parts },
+      model: "gemini-3-flash-preview",
+      contents: `Predict the botanical growth stages for a plant named "${name}" (variety: "${variety}") planted on ${plantedDate}. 
+      Consider typical hydroponic/indoor growth rates which are often 20-30% faster than soil. 
+      Return realistic estimated dates for Germination, Vegetative start, Flowering start, and expected Harvest.`,
       config: {
-        systemInstruction: "You are 'HydroBot'. Diagnose issues professionally. Keep it under 100 words.",
-        temperature: 0.7,
-      }
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            germinationDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+            vegetativeDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+            floweringDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+            harvestDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+            notes: { type: Type.STRING, description: "A brief care tip based on this specific variety." },
+          },
+          required: ["germinationDate", "vegetativeDate", "floweringDate", "harvestDate", "notes"],
+        },
+      },
     });
 
-    return response.text || getLocalExpertAdvice(query);
-  } catch (error: any) {
-    // If API fails (no key, network down, etc), use local knowledge
-    return getLocalExpertAdvice(query);
+    const text = response.text;
+    if (!text) return null;
+    return JSON.parse(text) as GrowthProjection;
+  } catch (error) {
+    console.error("AI Prediction failed:", error);
+    return null;
   }
 };
 
-export const getDailyGrowerTip = async () => {
+/**
+ * Expert troubleshooting advice.
+ */
+export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const contents: any[] = [{ text: query }];
+    if (image) {
+      contents.push({
+        inlineData: {
+          data: image.data,
+          mimeType: image.mimeType,
+        },
+      });
+    }
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: "One short hydro tip (10 words).",
-      config: { temperature: 1.0 }
+      model: "gemini-3-flash-preview",
+      contents: { parts: contents },
+      config: {
+        systemInstruction: "You are a world-class hydroponic and aquaponic consultant. Provide concise, actionable advice for indoor gardeners.",
+      },
     });
-    return response.text?.trim() || "Target pH 5.8 for optimal nutrient uptake.";
+
+    return response.text || "I'm sorry, I couldn't generate a response. Please check your parameters.";
   } catch (error) {
-    return "Consistently check water levels daily.";
+    console.error("Expert advice failed:", error);
+    return "I'm having trouble connecting to the botanical database. Please check your internet or try again later.";
   }
 };

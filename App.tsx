@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Sprout, 
@@ -15,13 +15,16 @@ import {
   ChevronLeft,
   Sun,
   Home,
-  Scale,
   ExternalLink,
   Download,
-  Users,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles,
+  TrendingUp,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
-import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, UserProfile } from './types.ts';
+import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection } from './types.ts';
+import { predictGrowthTimeline } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
@@ -55,10 +58,8 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
 
 // --- Dashboard View ---
 
-const DashboardView = ({ gardens, notifications, setView, onGardenSelect, currentProfile }: any) => {
+const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any) => {
   const totalPlants = gardens.reduce((acc: number, g: Garden) => acc + (g.plants?.length || 0), 0);
-
-  if (!currentProfile) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -66,17 +67,17 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, curren
         <Leaf className="absolute -bottom-6 -right-6 w-32 h-32 text-emerald-500/20 rotate-12" />
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
-             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${currentProfile.avatarColor} text-white`}>
-                {currentProfile.name[0]}
+             <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black bg-emerald-500 text-white">
+                G
              </div>
-             <span className="font-bold text-emerald-100 uppercase tracking-widest text-[10px]">Active Profile: {currentProfile.name}</span>
+             <span className="font-bold text-emerald-100 uppercase tracking-widest text-[10px]">Grower Mode Active</span>
           </div>
           <h2 className="text-4xl font-black mb-2 tracking-tight">Growth Dashboard</h2>
           <p className="text-emerald-50/90 font-medium italic text-lg opacity-80">"Track your hydroponic journey effortlessly."</p>
           
           <div className="flex gap-4 mt-8">
             <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl">
-              <p className="text-[10px] font-black uppercase text-emerald-200">System Logs</p>
+              <p className="text-[10px] font-black uppercase text-emerald-200">Gardens</p>
               <p className="text-2xl font-black">{gardens.length}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl">
@@ -141,27 +142,12 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, curren
 
 // --- Main Application ---
 
-const DEFAULT_PROFILE: UserProfile = { id: 'default', name: 'Master Grower', avatarColor: 'bg-emerald-500' };
-
 export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
   
-  const [profiles, setProfiles] = useState<UserProfile[]>(() => {
-    try {
-      const saved = localStorage.getItem('hydro_profiles_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) { console.warn(e); }
-    return [DEFAULT_PROFILE];
-  });
-
-  const [currentProfileId, setCurrentProfileId] = useState<string>(() => profiles[0].id);
-
   const [gardens, setGardens] = useState<Garden[]>(() => {
     try {
-      const saved = localStorage.getItem(`hydro_data_v2_${profiles[0].id}`);
+      const saved = localStorage.getItem('hydro_gardens_single_user');
       if (saved) return JSON.parse(saved);
     } catch (e) { console.warn(e); }
     return [];
@@ -174,39 +160,19 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [isPlantDetailOpen, setIsPlantDetailOpen] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
-
-  const currentProfile = useMemo(() => {
-    return profiles.find(p => p.id === currentProfileId) || profiles[0] || DEFAULT_PROFILE;
-  }, [profiles, currentProfileId]);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
 
   // Persistence
   useEffect(() => {
-    localStorage.setItem('hydro_profiles_v2', JSON.stringify(profiles));
-  }, [profiles]);
-
-  useEffect(() => {
-    if (currentProfileId) {
-      localStorage.setItem(`hydro_data_v2_${currentProfileId}`, JSON.stringify(gardens));
-    }
-  }, [gardens, currentProfileId]);
-
-  // Handle switching profiles
-  useEffect(() => {
-    const saved = localStorage.getItem(`hydro_data_v2_${currentProfileId}`);
-    if (saved) {
-      try { setGardens(JSON.parse(saved)); } 
-      catch (e) { setGardens([]); }
-    } else {
-      setGardens([]);
-    }
-  }, [currentProfileId]);
+    localStorage.setItem('hydro_gardens_single_user', JSON.stringify(gardens));
+  }, [gardens]);
 
   const calculateAge = (date: string) => {
     const start = new Date(date);
@@ -249,17 +215,35 @@ export default function App() {
     setEditingGarden(null);
   };
 
-  const savePlant = (e: React.FormEvent<HTMLFormElement>) => {
+  const savePlant = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedGardenId) return;
+    
     const f = e.currentTarget;
     const name = (f.elements.namedItem('pname') as HTMLInputElement).value;
     const variety = (f.elements.namedItem('pvariety') as HTMLInputElement).value;
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
 
+    setIsAiLoading(true);
+    
+    // Predict growth with AI
+    const projection = await predictGrowthTimeline(name, variety, plantedDate);
+    
+    const newPlant: Plant = { 
+      id: Date.now().toString(), 
+      name, 
+      variety, 
+      plantedDate, 
+      stage: 'Germination', 
+      harvests: [],
+      projection: projection || undefined
+    };
+
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: [...(g.plants || []), { id: Date.now().toString(), name, variety, plantedDate, stage: 'Germination', harvests: [] }]
+      ...g, plants: [...(g.plants || []), newPlant]
     } : g));
+    
+    setIsAiLoading(false);
     setIsPlantModalOpen(false);
   };
 
@@ -280,16 +264,6 @@ export default function App() {
     setIsPlantDetailOpen(false);
   };
 
-  const createProfile = () => {
-    const name = prompt("Enter grower name:");
-    if (name) {
-      const colors = ['bg-blue-500', 'bg-rose-500', 'bg-amber-500', 'bg-purple-500', 'bg-emerald-500'];
-      const newProfile = { id: Date.now().toString(), name, avatarColor: colors[Math.floor(Math.random() * colors.length)] };
-      setProfiles(prev => [...prev, newProfile]);
-      setCurrentProfileId(newProfile.id);
-    }
-  };
-
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       {/* --- Sidebar --- */}
@@ -301,18 +275,6 @@ export default function App() {
           <span className="text-xl font-black text-emerald-600 hidden md:block tracking-tight">HydroGrow</span>
         </div>
         
-        <div className="px-2">
-           <button onClick={() => setView('profiles')} className="w-full flex items-center space-x-3 p-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 group">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs ${currentProfile.avatarColor}`}>
-                 {currentProfile.name[0]}
-              </div>
-              <div className="hidden md:block text-left overflow-hidden">
-                 <p className="text-[10px] font-black uppercase text-slate-400 leading-none mb-0.5">Active</p>
-                 <p className="font-bold text-xs truncate text-slate-700">{currentProfile.name}</p>
-              </div>
-           </button>
-        </div>
-
         <div className="flex-1 space-y-2">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -332,7 +294,7 @@ export default function App() {
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">{selectedGarden ? selectedGarden.name : view}</h1>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-              User: {currentProfile.name} • Setup Logs
+              Indoor Hydroponic Assistant
             </p>
           </div>
           {view === 'gardens' && !selectedGarden && (
@@ -340,37 +302,7 @@ export default function App() {
           )}
         </header>
 
-        {view === 'profiles' && (
-           <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in">
-              <div className="text-center">
-                 <Users size={48} className="mx-auto text-emerald-600 mb-4" />
-                 <h2 className="text-4xl font-black text-slate-800 tracking-tight">Profile Manager</h2>
-                 <p className="text-slate-500 font-medium">Switch between multiple growers on this device.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {profiles.map(p => (
-                    <Card 
-                      key={p.id} 
-                      onClick={() => { setCurrentProfileId(p.id); setView('dashboard'); }}
-                      className={`relative cursor-pointer transition-all border-2 ${currentProfileId === p.id ? 'border-emerald-500 bg-emerald-50/10' : 'hover:border-slate-200'}`}
-                    >
-                       <div className={`w-12 h-12 rounded-2xl mb-4 flex items-center justify-center text-white font-black text-xl ${p.avatarColor}`}>
-                          {p.name[0]}
-                       </div>
-                       <h3 className="text-xl font-bold text-slate-800">{p.name}</h3>
-                       <p className="text-xs text-slate-400 font-black uppercase tracking-widest mt-1">Profile {p.id === 'default' ? 'Owner' : 'Member'}</p>
-                       {currentProfileId === p.id && <div className="absolute top-4 right-4 text-emerald-500"><CheckCircle2 size={24} /></div>}
-                    </Card>
-                 ))}
-                 <button onClick={createProfile} className="border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 text-slate-300 hover:border-emerald-100 hover:text-emerald-300 transition-all outline-none">
-                    <Plus size={40} className="mb-2" />
-                    <span className="font-black uppercase tracking-widest text-xs">Add New User</span>
-                 </button>
-              </div>
-           </div>
-        )}
-
-        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} currentProfile={currentProfile} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} />}
 
         {view === 'gardens' && !selectedGarden && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
@@ -416,6 +348,11 @@ export default function App() {
                           <div>
                             <h4 className="font-black text-slate-800 text-lg leading-tight">{p.name}</h4>
                             <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Standard Breed'}</p>
+                            {p.projection && (
+                              <div className="flex items-center gap-1 mt-1 text-emerald-600 text-[10px] font-black uppercase tracking-wider">
+                                <Sparkles size={10} /> AI Projected
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4 mt-4 md:mt-0">
@@ -453,17 +390,17 @@ export default function App() {
           <div className="max-w-xl mx-auto py-10">
             <Card className="p-10 text-center">
               <div className="w-16 h-16 bg-slate-100 text-slate-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Settings size={32} /></div>
-              <h3 className="text-2xl font-black mb-8">System Profile</h3>
+              <h3 className="text-2xl font-black mb-8">Storage Management</h3>
               <div className="space-y-4">
                 <Button variant="secondary" className="w-full" onClick={() => {
-                   const data = JSON.stringify({ gardens, profiles }, null, 2);
+                   const data = JSON.stringify(gardens, null, 2);
                    const blob = new Blob([data], { type: 'application/json' });
                    const url = URL.createObjectURL(blob);
                    const a = document.createElement('a');
                    a.href = url;
-                   a.download = `hydro-export-${currentProfile.name}.json`;
+                   a.download = `hydro-backup.json`;
                    a.click();
-                }}><Download size={18}/><span>Export User Data</span></Button>
+                }}><Download size={18}/><span>Export My Data</span></Button>
                 <Button variant="danger" className="w-full" onClick={() => { if(confirm("Permanently wipe local user data?")) { localStorage.clear(); window.location.reload(); } }}><Trash2 size={18}/><span>Wipe App Storage</span></Button>
               </div>
             </Card>
@@ -475,7 +412,7 @@ export default function App() {
 
       {isPlantDetailOpen && inspectedPlant && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white rounded-[3.5rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+           <div className="bg-white rounded-[3.5rem] w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
               <div className="p-10 pb-6 flex justify-between items-start bg-slate-50/50">
                  <div className="flex items-center space-x-6">
                     <div className="w-20 h-20 bg-emerald-600 text-white rounded-[2.5rem] flex items-center justify-center shadow-lg">
@@ -505,10 +442,51 @@ export default function App() {
                     </div>
                  </div>
 
+                 {/* Growth Timeline Component */}
+                 {inspectedPlant.projection && (
+                   <div className="bg-emerald-50/30 rounded-[2.5rem] p-8 border border-emerald-100">
+                      <div className="flex items-center gap-2 mb-6">
+                         <Sparkles size={18} className="text-emerald-600" />
+                         <h4 className="text-sm font-black uppercase text-emerald-600 tracking-widest">AI Predicted Growth Timeline</h4>
+                      </div>
+                      
+                      <div className="relative">
+                         <div className="absolute top-1/2 left-0 w-full h-1 bg-emerald-100 -translate-y-1/2 rounded-full"></div>
+                         <div className="relative flex justify-between">
+                            {[
+                               { label: 'Germination', date: inspectedPlant.projection.germinationDate },
+                               { label: 'Veg Start', date: inspectedPlant.projection.vegetativeDate },
+                               { label: 'Bloom', date: inspectedPlant.projection.floweringDate },
+                               { label: 'Harvest', date: inspectedPlant.projection.harvestDate }
+                            ].map((milestone, idx) => {
+                               const isPassed = new Date(milestone.date) <= new Date();
+                               return (
+                                 <div key={idx} className="flex flex-col items-center z-10">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-colors ${isPassed ? 'bg-emerald-600 text-white shadow-lg' : 'bg-white border-2 border-emerald-100 text-emerald-200'}`}>
+                                       {isPassed ? <CheckCircle2 size={16} /> : <div className="w-2 h-2 rounded-full bg-current" />}
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 text-center leading-tight mb-1">{milestone.label}</p>
+                                    <p className={`text-[10px] font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-400'}`}>{milestone.date}</p>
+                                 </div>
+                               );
+                            })}
+                         </div>
+                      </div>
+
+                      <div className="mt-8 flex items-start gap-3 bg-white p-4 rounded-2xl border border-emerald-50">
+                         <TrendingUp size={16} className="text-emerald-500 mt-0.5" />
+                         <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                            <span className="font-black text-emerald-700 uppercase mr-1">Expert Tip:</span>
+                            {inspectedPlant.projection.notes}
+                         </p>
+                      </div>
+                   </div>
+                 )}
+
                  <div className="space-y-4">
                     <div className="flex items-center gap-2">
                        <Clock size={18} className="text-emerald-600" />
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Phase Tracker</label>
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Update Current Phase Manually</label>
                     </div>
                     <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-[2rem]">
                        {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((s) => (
@@ -570,13 +548,48 @@ export default function App() {
       {isPlantModalOpen && (
         <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
-              <h3 className="text-3xl font-black text-slate-800 mb-10">Add Specimen</h3>
+              <div className="flex items-center gap-3 mb-4">
+                 <Sprout className="text-emerald-600" />
+                 <h3 className="text-3xl font-black text-slate-800">Add Specimen</h3>
+              </div>
+              <p className="text-slate-500 text-sm mb-10 font-medium">Gemini AI will automatically predict growth stages for you.</p>
+              
               <form onSubmit={savePlant} className="space-y-6">
-                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Common Name</label><input name="pname" placeholder="E.g. Mint" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" /></div>
-                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Strain/Variety</label><input name="pvariety" placeholder="E.g. Peppermint" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" /></div>
-                 <div><label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Planted On</label><input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" /></div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg">Save Specimen</Button>
-                 <button type="button" onClick={() => setIsPlantModalOpen(false)} className="w-full text-center text-slate-400 font-bold py-2 mt-2 uppercase text-[10px] tracking-widest">Cancel</button>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Common Name</label>
+                    <input name="pname" placeholder="E.g. Basil" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Strain/Variety</label>
+                    <input name="pvariety" placeholder="E.g. Genovese" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Planted On</label>
+                    <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" />
+                 </div>
+                 
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg" disabled={isAiLoading}>
+                    {isAiLoading ? (
+                       <>
+                          <Loader2 className="animate-spin" size={20} />
+                          <span>Generating AI Timeline...</span>
+                       </>
+                    ) : (
+                       <>
+                          <Sparkles size={20} />
+                          <span>Save & Predict Growth</span>
+                       </>
+                    )}
+                 </Button>
+                 
+                 <button 
+                   type="button" 
+                   onClick={() => setIsPlantModalOpen(false)} 
+                   disabled={isAiLoading}
+                   className="w-full text-center text-slate-400 font-bold py-2 mt-2 uppercase text-[10px] tracking-widest disabled:opacity-50"
+                 >
+                    Cancel
+                 </button>
               </form>
            </div>
         </div>
