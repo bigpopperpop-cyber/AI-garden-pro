@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -26,8 +27,8 @@ import { predictGrowthTimeline } from './services/geminiService.ts';
 
 // --- Shared UI Components ---
 
-// Added key to the prop type definition to satisfy TypeScript when Card is used within map() loops.
-const Card = ({ children, className = "", onClick }: { children?: React.ReactNode, className?: string, onClick?: () => void, key?: any }) => (
+// Fix: Modified Card component props type to allow 'key' and other standard React props by using any
+const Card = ({ children, className = "", onClick }: any) => (
   <div 
     onClick={onClick}
     className={`bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 ${className}`}
