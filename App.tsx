@@ -36,7 +36,9 @@ import {
   Heart,
   Share2,
   Copy,
-  Check
+  Check,
+  History,
+  Scale
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -644,62 +646,101 @@ export default function App() {
                     </Button>
                   </div>
                   
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {selectedGarden.plants.map(p => (
-                      <div key={p.id} className="p-6 bg-white border border-slate-100 rounded-3xl group hover:shadow-sm transition-all">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
-                               <Sprout size={24} />
+                      <div key={p.id} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden group hover:shadow-lg hover:border-emerald-100 transition-all duration-300">
+                        <div className="p-8">
+                          <div className="flex items-start justify-between mb-6">
+                            <div className="flex items-center space-x-5">
+                              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center shadow-inner">
+                                <Sprout size={32} />
+                              </div>
+                              <div>
+                                <h4 className="font-black text-slate-800 text-2xl tracking-tight mb-1">{p.name}</h4>
+                                <div className="flex items-center gap-3">
+                                  <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-wider">{p.variety || 'Heirloom'}</span>
+                                  <div className="flex items-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                    <Calendar size={12} className="mr-1.5" /> Planted {p.plantedDate}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-lg">{p.name}</p>
-                              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{p.variety || 'Heirloom'}</p>
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                              <button onClick={() => { setEditingPlant({ plant: p, gardenId: selectedGarden.id }); setIsPlantModalOpen(true); }} className="p-2.5 bg-slate-50 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all outline-none">
+                                <Pencil size={18} />
+                              </button>
+                              <button onClick={() => deletePlant(selectedGarden.id, p.id)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all outline-none">
+                                <Trash2 size={18} />
+                              </button>
                             </div>
                           </div>
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                            <button onClick={() => { setEditingPlant({ plant: p, gardenId: selectedGarden.id }); setIsPlantModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600 outline-none">
-                              <Pencil size={18} />
-                            </button>
-                            <button onClick={() => deletePlant(selectedGarden.id, p.id)} className="p-2 text-slate-300 hover:text-rose-500 outline-none">
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="p-4 bg-slate-50 rounded-2xl">
-                             <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Growth Phase</label>
-                             <select 
-                                value={p.stage} 
-                                onChange={(e) => updatePlantStage(selectedGarden.id, p.id, e.target.value as LifecycleStage)}
-                                className="w-full bg-transparent font-bold text-slate-700 outline-none"
-                             >
-                                <option>Germination</option>
-                                <option>Vegetative</option>
-                                <option>Flowering</option>
-                                <option>Fruiting</option>
-                                <option>Harvested</option>
-                             </select>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100/50">
+                               <label className="text-[10px] font-black uppercase text-slate-400 mb-2.5 block tracking-widest">Growth Phase</label>
+                               <div className="relative">
+                                 <select 
+                                    value={p.stage} 
+                                    onChange={(e) => updatePlantStage(selectedGarden.id, p.id, e.target.value as LifecycleStage)}
+                                    className="w-full bg-white px-4 py-2 rounded-xl border border-slate-200 font-black text-slate-700 outline-none appearance-none cursor-pointer focus:border-emerald-500 transition-colors"
+                                 >
+                                    <option>Germination</option>
+                                    <option>Vegetative</option>
+                                    <option>Flowering</option>
+                                    <option>Fruiting</option>
+                                    <option>Harvested</option>
+                                 </select>
+                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                   <ChevronRight size={14} className="rotate-90" />
+                                 </div>
+                               </div>
+                            </div>
+                            <div className="p-5 bg-emerald-50 rounded-[1.5rem] border border-emerald-100/50 flex items-center justify-between">
+                               <div>
+                                 <label className="text-[10px] font-black uppercase text-emerald-600/60 mb-1.5 block tracking-widest">Lifetime Yield</label>
+                                 <p className="font-black text-2xl text-emerald-700 tracking-tight">{p.harvests.reduce((sum, h) => sum + h.amount, 0)}<span className="text-sm ml-1 opacity-60">g</span></p>
+                               </div>
+                               <button 
+                                  onClick={() => { setSelectedPlantId(p.id); setIsHarvestModalOpen(true); }}
+                                  className="px-4 py-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-200 hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm"
+                               >
+                                  <Weight size={18} /> <span>Harvest</span>
+                               </button>
+                            </div>
                           </div>
-                          <div className="p-4 bg-emerald-50 rounded-2xl flex items-center justify-between">
-                             <div>
-                               <label className="text-[10px] font-black uppercase text-emerald-600/60 mb-1 block tracking-widest">Total Yield</label>
-                               <p className="font-bold text-emerald-700">{p.harvests.reduce((sum, h) => sum + h.amount, 0)}g Collected</p>
-                             </div>
-                             <button 
-                                onClick={() => { setSelectedPlantId(p.id); setIsHarvestModalOpen(true); }}
-                                className="p-2 bg-white text-emerald-600 rounded-xl shadow-sm hover:scale-105 transition-transform"
-                             >
-                                <Weight size={18} />
-                             </button>
+
+                          {/* Harvest Records Section */}
+                          <div className="border-t border-slate-100 pt-6">
+                            <div className="flex items-center gap-2 mb-4">
+                              <History size={14} className="text-slate-400" />
+                              <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Harvest History</h5>
+                            </div>
+                            <div className="space-y-2">
+                              {p.harvests.length > 0 ? (
+                                p.harvests.map((record) => (
+                                  <div key={record.id} className="flex items-center justify-between py-2 px-4 bg-slate-50/50 rounded-xl text-sm border border-transparent hover:border-slate-100 transition-all">
+                                    <div className="flex items-center gap-3">
+                                      <Calendar size={14} className="text-slate-300" />
+                                      <span className="font-medium text-slate-600">{record.date}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-emerald-600 font-black">
+                                      <Scale size={14} />
+                                      <span>{record.amount} {record.unit}</span>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-xs text-slate-400 italic px-4 py-2">No harvest records found for this plant yet.</p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
                     ))}
                     {selectedGarden.plants.length === 0 && (
-                      <div className="text-center py-10 opacity-30">
-                        <p className="font-bold">No plants logged yet.</p>
+                      <div className="text-center py-16 opacity-30 border-2 border-dashed border-slate-100 rounded-[2.5rem]">
+                        <Sprout size={48} className="mx-auto mb-4" />
+                        <p className="font-black uppercase tracking-widest text-xs">No plants logged in this garden.</p>
                       </div>
                     )}
                   </div>
