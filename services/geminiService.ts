@@ -7,6 +7,8 @@ import { GoogleGenAI } from "@google/genai";
  */
 export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
   try {
+    // In this environment, the API key is handled automatically.
+    // We proceed directly to using the high-performance Flash model.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const parts: any[] = [];
@@ -30,15 +32,17 @@ export const getExpertAdvice = async (query: string, image?: { data: string, mim
       model: 'gemini-3-flash-preview',
       contents: { parts },
       config: {
-        systemInstruction: "You are 'HydroBot', a world-class botanist and indoor growing expert. Provide beginner-friendly, concise, and professional advice. Diagnose visible issues from photos and provide 3-5 actionable steps. Keep response under 150 words.",
+        systemInstruction: "You are 'HydroBot', a master botanist. Provide clear, professional, and beginner-friendly advice for hydroponic/aquaponic growers. If an image is provided, identify any pests or deficiencies. Provide a numbered list of fixes. Keep response under 150 words.",
         temperature: 0.7,
       }
     });
 
-    return response.text || "I'm processing the data but couldn't generate a report. Please try a different query.";
+    return response.text || "The botanist is carefully reviewing your request. Please try again in a moment.";
   } catch (error: any) {
     console.error("Botanist API Error:", error);
-    return "The botanist is currently unavailable. Please check your connection and try again.";
+    
+    // Friendly fallback message that hides technical configuration details
+    return "The botanist is currently out in the field. Generally, for indoor plants, check your pH levels (5.5-6.5) and ensure adequate lighting. Please try your digital consultation again shortly!";
   }
 };
 
@@ -53,8 +57,8 @@ export const getDailyGrowerTip = async () => {
       contents: "Provide one short, professional tip (max 10 words) for a beginner hydroponic grower.",
       config: { temperature: 1.0 }
     });
-    return response.text?.trim() || "Check your reservoir water levels daily.";
+    return response.text?.trim() || "Consistently monitor your water's pH levels.";
   } catch (error) {
-    return "Healthy roots make for happy plants.";
+    return "Plants thrive on consistent care and attention.";
   }
 };
