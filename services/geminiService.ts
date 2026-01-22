@@ -1,13 +1,18 @@
 
 import { GoogleGenAI } from "@google/genai";
 
+/**
+ * Sends a query and optional image to the Gemini API for plant diagnosis.
+ * Uses gemini-3-flash-preview for the best balance of vision capabilities and reliability.
+ */
 export const getExpertAdvice = async (query: string, image?: { data: string, mimeType: string }) => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
+    // Construct parts array
     const parts: any[] = [];
     
-    // Add image first if provided, as vision models often perform better with this ordering
+    // If an image is provided, add it as the first part for better vision model context
     if (image) {
       parts.push({
         inlineData: {
@@ -17,15 +22,16 @@ export const getExpertAdvice = async (query: string, image?: { data: string, mim
       });
     }
     
-    // Add text query
-    parts.push({ text: query || "Please analyze this plant and check for health issues." });
+    // Add the user text prompt
+    parts.push({ 
+      text: query || "Please examine this plant and provide a health assessment or maintenance advice." 
+    });
 
-    // Use gemini-3-pro-preview for complex multimodal analysis (plant diagnosis)
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: [{ role: 'user', parts }],
+      model: 'gemini-3-flash-preview',
+      contents: { parts }, // Strict parts-based structure for multimodal requests
       config: {
-        systemInstruction: "You are a professional botanist and expert in indoor gardening (hydroponics/aquaponics). Provide beginner-friendly, concise advice. If an image is provided, analyze it for signs of pests, nutrient deficiencies, or diseases. Identify problems clearly and provide a numbered list of actionable steps to fix the issue. Keep the total response under 150 words.",
+        systemInstruction: "You are 'HydroBot', a world-class botanist and hydroponic/aquaponic expert. Provide beginner-friendly, professional, and concise advice. If a photo is provided, diagnose visible pests, deficiencies, or diseases. Give clear, numbered actionable steps. Keep your response under 150 words.",
         temperature: 0.7,
       }
     });
@@ -34,37 +40,34 @@ export const getExpertAdvice = async (query: string, image?: { data: string, mim
       return response.text;
     }
     
-    return "The AI expert was unable to generate a response. Please try rephrasing your question or using a clearer photo.";
+    return "The botanist is thinking, but couldn't find the right words. Try rephrasing your question.";
   } catch (error: any) {
-    console.error("AI Expert Error Details:", error);
+    console.error("AI Assistant Error:", error);
     
-    // Provide a more descriptive error to the user to help debug "not working" states
-    let errorMessage = "The AI expert is currently unavailable.";
-    
+    // Friendly user-facing error messages
     if (error?.message?.includes('API_KEY')) {
-      errorMessage = "Configuration Error: Valid API key not found.";
-    } else if (error?.message?.includes('fetch')) {
-      errorMessage = "Network Error: Please check your internet connection and try again.";
-    } else if (error?.message) {
-      errorMessage = `Analysis Error: ${error.message}`;
+      return "Configuration Error: The botanist's license (API Key) is missing or invalid.";
     }
     
-    return errorMessage + " Please try again with a smaller photo or just a text description.";
+    return `The botanist is currently unavailable (${error.message || 'Connection Error'}). Please try again with a simpler text query or a smaller photo.`;
   }
 };
 
+/**
+ * Fetches a simple daily tip for the dashboard.
+ */
 export const getDailyGrowerTip = async () => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: "Give a one-sentence beginner tip for indoor hydroponic or aquaponic gardening.",
+      contents: "Provide one short, helpful tip (max 15 words) for a beginner indoor hydroponic grower.",
       config: {
-        temperature: 0.9
+        temperature: 1.0 // More variety for daily tips
       }
     });
-    return response.text?.trim() || "Check your water levels daily!";
+    return response.text?.trim() || "Clean your reservoir every 2 weeks!";
   } catch (error) {
-    return "Proper pH is the key to healthy plant growth.";
+    return "Consistently check your pH levels for optimal nutrient uptake.";
   }
 };

@@ -24,8 +24,6 @@ import {
   Weight,
   TrendingUp,
   Activity,
-  Camera,
-  Image as ImageIcon,
   Upload,
   Download,
   FileUp,
@@ -38,7 +36,9 @@ import {
   Copy,
   Check,
   History,
-  Scale
+  Scale,
+  ExternalLink,
+  ChevronUp
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -200,7 +200,6 @@ const ReportsView = ({ gardens }: { gardens: Garden[] }) => {
   }, [gardens]);
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#64748b'];
-
   const totalHarvest = harvestData.reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
@@ -299,6 +298,8 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [isHarvestModalOpen, setIsHarvestModalOpen] = useState(false);
+  const [isPlantDetailOpen, setIsPlantDetailOpen] = useState(false);
+  
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
@@ -325,6 +326,7 @@ export default function App() {
   }, [gardens]);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
+  const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
 
   const handleGardenSelect = (id: string) => {
     setSelectedGardenId(id);
@@ -412,13 +414,13 @@ export default function App() {
       ...g,
       plants: g.plants.map(p => p.id === selectedPlantId ? {
         ...p,
-        harvests: [...p.harvests, newHarvest],
+        harvests: [newHarvest, ...p.harvests], // Newest first
         stage: 'Harvested'
       } : p)
     } : g));
 
     setIsHarvestModalOpen(false);
-    setSelectedPlantId(null);
+    // Keep detail modal open if we just logged from there
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -458,18 +460,28 @@ export default function App() {
         ...g,
         plants: g.plants.filter(p => p.id !== plantId)
       } : g));
+      if (selectedPlantId === plantId) setIsPlantDetailOpen(false);
     }
   };
 
   const handleAiTroubleshoot = async () => {
     if(!aiQuery && !selectedImage) return;
     setIsAiLoading(true);
+    setAiResponse("");
     const advice = await getExpertAdvice(
       aiQuery || "Please analyze this plant image and tell me if it looks healthy.",
       selectedImage ? { data: selectedImage.data, mimeType: selectedImage.mimeType } : undefined
     );
     setAiResponse(advice);
     setIsAiLoading(false);
+  };
+
+  const handleShare = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    });
   };
 
   const exportData = () => {
@@ -499,22 +511,14 @@ export default function App() {
               alert("Data imported successfully!");
             }
           } else {
-            alert("Invalid data format. Please use a backup file exported from this app.");
+            alert("Invalid data format.");
           }
         } catch (err) {
-          alert("Error reading file. Please make sure it's a valid JSON file.");
+          alert("Error reading file.");
         }
       };
       reader.readAsText(file);
     }
-  };
-
-  const handleShare = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    });
   };
 
   const supportLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gizmooo@yahoo.com&item_name=Support%20HydroHelper%20Development&currency_code=USD";
@@ -646,94 +650,45 @@ export default function App() {
                     </Button>
                   </div>
                   
-                  <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4">
                     {selectedGarden.plants.map(p => (
-                      <div key={p.id} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden group hover:shadow-lg hover:border-emerald-100 transition-all duration-300">
-                        <div className="p-8">
-                          <div className="flex items-start justify-between mb-6">
-                            <div className="flex items-center space-x-5">
-                              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center shadow-inner">
-                                <Sprout size={32} />
-                              </div>
-                              <div>
-                                <h4 className="font-black text-slate-800 text-2xl tracking-tight mb-1">{p.name}</h4>
-                                <div className="flex items-center gap-3">
-                                  <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-wider">{p.variety || 'Heirloom'}</span>
-                                  <div className="flex items-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                                    <Calendar size={12} className="mr-1.5" /> Planted {p.plantedDate}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
-                              <button onClick={() => { setEditingPlant({ plant: p, gardenId: selectedGarden.id }); setIsPlantModalOpen(true); }} className="p-2.5 bg-slate-50 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all outline-none">
-                                <Pencil size={18} />
-                              </button>
-                              <button onClick={() => deletePlant(selectedGarden.id, p.id)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all outline-none">
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
+                      <div key={p.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 hover:shadow-md hover:border-emerald-100 transition-all group flex flex-col md:flex-row items-start md:items-center justify-between">
+                        <div className="flex items-center space-x-5 mb-4 md:mb-0">
+                          <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
+                             <Sprout size={28} />
                           </div>
+                          <div>
+                            <h4 className="font-black text-slate-800 text-lg leading-tight">{p.name}</h4>
+                            <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Heirloom'}</p>
+                          </div>
+                        </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                            <div className="p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100/50">
-                               <label className="text-[10px] font-black uppercase text-slate-400 mb-2.5 block tracking-widest">Growth Phase</label>
-                               <div className="relative">
-                                 <select 
-                                    value={p.stage} 
-                                    onChange={(e) => updatePlantStage(selectedGarden.id, p.id, e.target.value as LifecycleStage)}
-                                    className="w-full bg-white px-4 py-2 rounded-xl border border-slate-200 font-black text-slate-700 outline-none appearance-none cursor-pointer focus:border-emerald-500 transition-colors"
-                                 >
-                                    <option>Germination</option>
-                                    <option>Vegetative</option>
-                                    <option>Flowering</option>
-                                    <option>Fruiting</option>
-                                    <option>Harvested</option>
-                                 </select>
-                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                   <ChevronRight size={14} className="rotate-90" />
-                                 </div>
-                               </div>
-                            </div>
-                            <div className="p-5 bg-emerald-50 rounded-[1.5rem] border border-emerald-100/50 flex items-center justify-between">
-                               <div>
-                                 <label className="text-[10px] font-black uppercase text-emerald-600/60 mb-1.5 block tracking-widest">Lifetime Yield</label>
-                                 <p className="font-black text-2xl text-emerald-700 tracking-tight">{p.harvests.reduce((sum, h) => sum + h.amount, 0)}<span className="text-sm ml-1 opacity-60">g</span></p>
-                               </div>
-                               <button 
-                                  onClick={() => { setSelectedPlantId(p.id); setIsHarvestModalOpen(true); }}
-                                  className="px-4 py-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-200 hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm"
-                               >
-                                  <Weight size={18} /> <span>Harvest</span>
-                               </button>
-                            </div>
-                          </div>
-
-                          {/* Harvest Records Section */}
-                          <div className="border-t border-slate-100 pt-6">
-                            <div className="flex items-center gap-2 mb-4">
-                              <History size={14} className="text-slate-400" />
-                              <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Harvest History</h5>
-                            </div>
-                            <div className="space-y-2">
-                              {p.harvests.length > 0 ? (
-                                p.harvests.map((record) => (
-                                  <div key={record.id} className="flex items-center justify-between py-2 px-4 bg-slate-50/50 rounded-xl text-sm border border-transparent hover:border-slate-100 transition-all">
-                                    <div className="flex items-center gap-3">
-                                      <Calendar size={14} className="text-slate-300" />
-                                      <span className="font-medium text-slate-600">{record.date}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-emerald-600 font-black">
-                                      <Scale size={14} />
-                                      <span>{record.amount} {record.unit}</span>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-xs text-slate-400 italic px-4 py-2">No harvest records found for this plant yet.</p>
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex items-center flex-wrap gap-4 w-full md:w-auto">
+                           <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 flex flex-col min-w-[100px]">
+                              <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5 tracking-widest">Phase</span>
+                              <span className="text-xs font-black text-slate-700">{p.stage}</span>
+                           </div>
+                           <div className="px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-100 flex flex-col min-w-[80px]">
+                              <span className="text-[10px] font-black uppercase text-emerald-600/60 mb-0.5 tracking-widest">Yield</span>
+                              <span className="text-xs font-black text-emerald-700">{p.harvests.reduce((sum, h) => sum + h.amount, 0)}g</span>
+                           </div>
+                           
+                           <div className="flex gap-2 ml-auto">
+                              <button 
+                                onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }}
+                                className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-100 hover:scale-110 transition-transform"
+                                title="Inspect Plant Details"
+                              >
+                                <ExternalLink size={18} />
+                              </button>
+                              <button 
+                                onClick={() => { setSelectedPlantId(p.id); setIsHarvestModalOpen(true); }}
+                                className="p-3 bg-slate-100 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                title="Quick Harvest"
+                              >
+                                <Scale size={18} />
+                              </button>
+                           </div>
                         </div>
                       </div>
                     ))}
@@ -770,11 +725,6 @@ export default function App() {
                         <p className="text-slate-700 leading-relaxed">{note.content}</p>
                       </div>
                     ))}
-                    {selectedGarden.notes.length === 0 && (
-                      <div className="text-center py-10 opacity-30 italic">
-                        <p>No notes yet.</p>
-                      </div>
-                    )}
                   </div>
                 </Card>
               </div>
@@ -794,17 +744,13 @@ export default function App() {
                             {selectedGarden.type}
                           </p>
                        </div>
-                       <div className="p-4 bg-white/5 rounded-2xl">
-                          <p className="text-[10px] text-slate-400 uppercase font-black mb-1 tracking-widest">Description</p>
-                          <p className="text-sm text-slate-300 leading-relaxed italic">"{selectedGarden.description || 'No description provided.'}"</p>
-                       </div>
                     </div>
                  </Card>
 
                  <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-[2.5rem]">
                     <h4 className="font-black text-emerald-800 mb-2">Need Help?</h4>
-                    <p className="text-sm text-emerald-700 mb-6 leading-relaxed">Describe any issues with this garden to our AI expert.</p>
-                    <Button variant="outline" className="w-full bg-white" onClick={() => { setView('troubleshoot'); setSelectedGardenId(null); }}>Consult AI Assistant</Button>
+                    <p className="text-sm text-emerald-700 mb-6 leading-relaxed">Ask our AI botanist about symptoms or maintenance.</p>
+                    <Button variant="outline" className="w-full bg-white shadow-sm" onClick={() => { setView('troubleshoot'); setSelectedGardenId(null); }}>Consult Botanist</Button>
                  </div>
               </div>
             </div>
@@ -812,66 +758,47 @@ export default function App() {
         )}
 
         {view === 'troubleshoot' && (
-          <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
+          <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
              <div className="text-center space-y-4 mb-12">
                 <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-sm">
                    <Stethoscope size={48} />
                 </div>
-                <h2 className="text-4xl font-black text-slate-800 tracking-tight">Expert Plant Advice</h2>
-                <p className="text-slate-500 font-medium text-lg">Send a photo and describe any issues.</p>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tight">Ask Botanist</h2>
+                <p className="text-slate-500 font-medium text-lg">Send a photo and describe the symptoms.</p>
              </div>
              <Card className="p-8">
                 <div className="space-y-6">
-                  {/* Image Selection */}
                   <div className="space-y-2">
-                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Attach Photo (Optional)</label>
-                     <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
-                        ref={fileInputRef} 
-                        onChange={handleImageChange}
-                     />
+                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Attach Photo</label>
+                     <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
                      {!selectedImage ? (
-                        <button 
-                           onClick={() => fileInputRef.current?.click()}
-                           className="w-full py-8 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-slate-300 hover:border-emerald-200 hover:text-emerald-400 transition-all outline-none"
-                        >
+                        <button onClick={() => fileInputRef.current?.click()} className="w-full py-8 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-slate-300 hover:border-emerald-200 hover:text-emerald-400 transition-all outline-none">
                            <Upload size={32} className="mb-2" />
-                           <span className="font-bold text-sm">Upload or take a photo</span>
+                           <span className="font-bold text-sm">Upload Symptoms Photo</span>
                         </button>
                      ) : (
                         <div className="relative group">
                            <img src={selectedImage.url} alt="Plant Preview" className="w-full h-64 object-cover rounded-[2rem] shadow-md" />
-                           <button 
-                              onClick={() => setSelectedImage(null)}
-                              className="absolute top-4 right-4 p-2 bg-rose-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                           >
+                           <button onClick={() => setSelectedImage(null)} className="absolute top-4 right-4 p-2 bg-rose-500 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                               <X size={20} />
                            </button>
                         </div>
                      )}
                   </div>
-
                   <div className="space-y-2">
-                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Describe the problem</label>
-                     <textarea 
-                        value={aiQuery} 
-                        onChange={e => setAiQuery(e.target.value)}
-                        placeholder="E.g. My indoor tomato plants have small yellow spots on the lower leaves. I check the pH weekly."
-                        className="w-full h-32 p-6 bg-slate-50 border border-slate-100 rounded-[2rem] outline-none focus:border-emerald-500 transition-all text-slate-700 resize-none leading-relaxed"
-                     />
+                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Observations</label>
+                     <textarea value={aiQuery} onChange={e => setAiQuery(e.target.value)} placeholder="E.g. Yellowing tips, brown spots on bottom leaves, checking pH daily..." className="w-full h-32 p-6 bg-slate-50 border border-slate-100 rounded-[2rem] outline-none focus:border-emerald-500 transition-all text-slate-700 resize-none leading-relaxed" />
                   </div>
                   <Button onClick={handleAiTroubleshoot} disabled={isAiLoading || (!aiQuery && !selectedImage)} className="w-full py-5 text-xl shadow-lg">
                     {isAiLoading ? (
                       <div className="flex items-center space-x-3">
-                        <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>Consulting Expert...</span>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Diagnosing...</span>
                       </div>
                     ) : (
                       <>
                         <Sparkles size={20} />
-                        <span>Ask Botanist</span>
+                        <span>Run Diagnosis</span>
                       </>
                     )}
                   </Button>
@@ -881,7 +808,7 @@ export default function App() {
                <Card className="border-emerald-200 bg-white shadow-xl animate-in slide-in-from-bottom-8">
                  <div className="flex items-center space-x-3 mb-6">
                     <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg"><Sparkles size={20}/></div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Diagnosis & Plan</h3>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Expert Plan</h3>
                  </div>
                  <div className="prose prose-emerald text-slate-700 leading-relaxed whitespace-pre-wrap text-lg">
                     {aiResponse}
@@ -897,147 +824,162 @@ export default function App() {
                 <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
                    <Settings size={40} />
                 </div>
-                <h3 className="text-2xl font-black mb-4">Application Settings</h3>
-                <p className="text-slate-500 mb-10 text-sm">Manage your data and platform preferences.</p>
-                
+                <h3 className="text-2xl font-black mb-4">Settings</h3>
                 <div className="space-y-4">
                    <div className="grid grid-cols-2 gap-4">
                       <Button variant="secondary" className="py-4" onClick={exportData}>
-                         <Download size={18}/> <span>Export Backup</span>
+                         <Download size={18}/> <span>Export</span>
                       </Button>
                       <Button variant="secondary" className="py-4" onClick={() => importFileRef.current?.click()}>
-                         <FileUp size={18}/> <span>Import Backup</span>
+                         <FileUp size={18}/> <span>Import</span>
                       </Button>
-                      <input 
-                         type="file" 
-                         accept="application/json" 
-                         className="hidden" 
-                         ref={importFileRef} 
-                         onChange={handleImportFile}
-                      />
+                      <input type="file" accept="application/json" className="hidden" ref={importFileRef} onChange={handleImportFile} />
                    </div>
-                   
-                   <Button variant="danger" className="w-full py-4" onClick={() => { if(confirm("Are you sure? This deletes ALL your garden data!")) { localStorage.clear(); window.location.reload(); } }}>
-                      <Trash2 size={18}/> <span>Wipe All Garden Data</span>
+                   <Button variant="danger" className="w-full py-4" onClick={() => { if(confirm("Wipe everything?")) { localStorage.clear(); window.location.reload(); } }}>
+                      <Trash2 size={18}/> <span>Wipe Data</span>
                    </Button>
-                   
-                   <div className="pt-8">
-                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.7.0 (Stable)</p>
-                   </div>
-                </div>
-             </Card>
-
-             <Card className="p-8 border-l-4 border-l-blue-500 bg-blue-50/20">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
-                      <Share2 size={20} />
-                    </div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Spread the Word</h3>
-                  </div>
-                </div>
-                <p className="text-slate-700 text-sm mb-6 leading-relaxed">Know another indoor gardener who could use a helping hand? Share HydroHelper with them! It's completely private and runs right in the browser.</p>
-                <Button variant="blue" onClick={handleShare} className="w-full sm:w-auto shadow-sm">
-                   {isCopied ? <Check size={18} /> : <Copy size={18} />}
-                   <span>{isCopied ? 'Link Copied to Clipboard!' : 'Copy App Link'}</span>
-                </Button>
-             </Card>
-
-             <Card className="p-8 border-l-4 border-l-amber-500 bg-amber-50/20">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-amber-600 text-white rounded-xl flex items-center justify-center shadow-md">
-                    <Coffee size={20} />
-                  </div>
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight">Support the Creator</h3>
-                </div>
-                <p className="text-slate-700 text-sm mb-6 leading-relaxed">If you find HydroHelper useful and would like to support its ongoing development, feel free to contribute! Your support helps keep this tool free and regularly updated.</p>
-                <div className="flex flex-col sm:flex-row gap-4 items-center">
-                  <a href={supportLink} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                    <Button variant="amber" className="w-full sm:w-auto py-3 px-8 shadow-md">
-                      <Heart size={18} className="fill-amber-700" />
-                      <span>Donate via PayPal</span>
-                    </Button>
-                  </a>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">PayPal: gizmooo@yahoo.com</p>
-                </div>
-             </Card>
-
-             <Card className="p-8 border-l-4 border-l-emerald-500 bg-emerald-50/20">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-md">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight">Privacy & Local Storage</h3>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <div className="flex items-start space-x-3">
-                      <Zap size={18} className="text-emerald-500 mt-1 shrink-0" />
-                      <div>
-                        <p className="font-bold text-slate-800 text-sm">Your Data is Yours</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">All your garden logs, plant photos, and harvest records are stored <strong>locally in your browser</strong>. No data ever leaves your device unless you choose to export it.</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <Download size={18} className="text-emerald-500 mt-1 shrink-0" />
-                      <div>
-                        <p className="font-bold text-slate-800 text-sm">Move Anywhere</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">Want to switch from your phone to a laptop? Simply hit <strong>Export</strong> to get a tiny backup file, then <strong>Import</strong> it on the new device.</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-start space-x-3">
-                      <HardDrive size={18} className="text-emerald-500 mt-1 shrink-0" />
-                      <div>
-                        <p className="font-bold text-slate-800 text-sm">Zero Footprint</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">This app is extremely lightweight. Even with hundreds of garden entries, your data usually takes up less space than <strong>one low-quality photo</strong> (typically under 100KB).</p>
-                      </div>
-                    </div>
-                    <div className="p-4 bg-white/50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                       <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Storage Status</span>
-                       <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">Optimized</span>
-                    </div>
-                  </div>
                 </div>
              </Card>
           </div>
         )}
       </main>
 
+      {/* --- MODALS --- */}
+
+      {/* Plant Inspection Modal */}
+      {isPlantDetailOpen && inspectedPlant && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white rounded-[3.5rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+              <div className="p-10 pb-6 flex justify-between items-start">
+                 <div className="flex items-center space-x-6">
+                    <div className="w-20 h-20 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-lg shadow-emerald-100">
+                       <Sprout size={40} />
+                    </div>
+                    <div>
+                       <h3 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-2">{inspectedPlant.name}</h3>
+                       <p className="text-lg text-slate-400 font-bold uppercase tracking-widest">{inspectedPlant.variety || 'Unknown Variety'}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setIsPlantDetailOpen(false)} className="p-3 bg-slate-50 text-slate-400 hover:text-slate-600 rounded-2xl transition-all outline-none">
+                    <X size={32}/>
+                 </button>
+              </div>
+
+              <div className="px-10 overflow-y-auto space-y-8 pb-10">
+                 {/* Stats Bar */}
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                       <p className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Planted On</p>
+                       <p className="font-black text-slate-700">{inspectedPlant.plantedDate}</p>
+                    </div>
+                    <div className="p-6 bg-emerald-50 rounded-[2rem] border border-emerald-100">
+                       <p className="text-[10px] font-black uppercase text-emerald-600 mb-2 tracking-widest">Growth Phase</p>
+                       <div className="flex items-center space-x-2">
+                          <span className="font-black text-emerald-700">{inspectedPlant.stage}</span>
+                          <TrendingUp size={16} className="text-emerald-500" />
+                       </div>
+                    </div>
+                    <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100">
+                       <p className="text-[10px] font-black uppercase text-blue-600 mb-2 tracking-widest">Total Yield</p>
+                       <p className="font-black text-blue-700">{inspectedPlant.harvests.reduce((sum, h) => sum + h.amount, 0)}g</p>
+                    </div>
+                 </div>
+
+                 {/* Lifecycle Updater */}
+                 <div className="space-y-4">
+                    <label className="text-xs font-black uppercase text-slate-400 tracking-widest">Update Lifecycle Phase</label>
+                    <div className="flex flex-wrap gap-2">
+                       {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((stage) => (
+                          <button 
+                            key={stage}
+                            onClick={() => updatePlantStage(selectedGardenId!, inspectedPlant.id, stage as LifecycleStage)}
+                            className={`px-4 py-2 rounded-full text-xs font-black transition-all ${inspectedPlant.stage === stage ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                          >
+                             {stage}
+                          </button>
+                       ))}
+                    </div>
+                 </div>
+
+                 {/* Harvest History Section */}
+                 <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                       <h4 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                          <History size={20} className="text-emerald-600" /> Harvest Records
+                       </h4>
+                       <Button variant="outline" className="text-xs py-1.5" onClick={() => setIsHarvestModalOpen(true)}>
+                          <Scale size={16} /> <span>Add Record</span>
+                       </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                       {inspectedPlant.harvests.length > 0 ? (
+                         inspectedPlant.harvests.map(h => (
+                           <div key={h.id} className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] group hover:bg-white hover:border-emerald-200 transition-all">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                                    <Scale size={18} />
+                                 </div>
+                                 <div>
+                                    <p className="font-black text-slate-700">{h.amount} {h.unit}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{h.date}</p>
+                                 </div>
+                              </div>
+                              <button onClick={() => {
+                                 setGardens(gardens.map(g => g.id === selectedGardenId ? {
+                                    ...g, plants: g.plants.map(p => p.id === inspectedPlant.id ? {
+                                       ...p, harvests: p.harvests.filter(hr => hr.id !== h.id)
+                                    } : p)
+                                 } : g));
+                              }} className="opacity-0 group-hover:opacity-100 p-2 text-slate-300 hover:text-rose-500 transition-all">
+                                 <Trash2 size={16} />
+                              </button>
+                           </div>
+                         ))
+                       ) : (
+                         <div className="text-center py-10 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-100 opacity-40">
+                            <p className="text-xs font-black uppercase tracking-widest">No harvest data yet.</p>
+                         </div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+              
+              <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between">
+                 <Button variant="danger" onClick={() => deletePlant(selectedGardenId!, inspectedPlant.id)}>Remove Plant</Button>
+                 <Button onClick={() => { setEditingPlant({ plant: inspectedPlant, gardenId: selectedGardenId! }); setIsPlantModalOpen(true); }}>Edit Profile</Button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Garden Modal (Add/Edit) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-10">
                  <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingGarden ? 'Edit Garden' : 'New Garden'}</h3>
-                 <button onClick={() => { setIsModalOpen(false); setEditingGarden(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors outline-none"><X size={32}/></button>
+                 <button onClick={() => { setIsModalOpen(false); setEditingGarden(null); }} className="p-2 text-slate-300 hover:text-slate-600 outline-none"><X size={32}/></button>
               </div>
               <form onSubmit={saveGarden} className="space-y-6">
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Garden Name</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Garden Name</label>
                     <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. South Balcony" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
                  </div>
                  <div className="grid grid-cols-2 gap-6">
                     <div>
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Environment</label>
-                       <select name="gtype" defaultValue={editingGarden?.type || 'Indoor'} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold">
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Environment</label>
+                       <select name="gtype" defaultValue={editingGarden?.type || 'Indoor'} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold">
                           <option>Indoor</option>
                           <option>Outdoor</option>
                        </select>
                     </div>
                     <div>
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Start Date</label>
-                       <input name="gdate" type="date" defaultValue={editingGarden?.startedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold" />
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block">Start Date</label>
+                       <input name="gdate" type="date" defaultValue={editingGarden?.startedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
                     </div>
                  </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Notes / Description</label>
-                    <textarea name="gdesc" defaultValue={editingGarden?.description} placeholder="Briefly describe this setup..." className="w-full h-28 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 resize-none transition-all" />
-                 </div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">{editingGarden ? 'Update' : 'Initialize'} Garden</Button>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">{editingGarden ? 'Update' : 'Initialize'}</Button>
               </form>
            </div>
         </div>
@@ -1045,26 +987,26 @@ export default function App() {
 
       {/* Plant Modal (Add/Edit) */}
       {isPlantModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-10">
-                 <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingPlant ? 'Edit Plant' : 'Log New Plant'}</h3>
-                 <button onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors outline-none"><X size={32}/></button>
+                 <h3 className="text-3xl font-black text-slate-800 tracking-tight">{editingPlant ? 'Edit Plant' : 'Log Plant'}</h3>
+                 <button onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="p-2 text-slate-300 hover:text-slate-600 outline-none"><X size={32}/></button>
               </div>
               <form onSubmit={savePlant} className="space-y-6">
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Plant Name</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Plant Name</label>
                     <input name="pname" defaultValue={editingPlant?.plant.name} placeholder="E.g. Basil" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
                  </div>
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Variety</label>
-                    <input name="pvariety" defaultValue={editingPlant?.plant.variety} placeholder="E.g. Genovese" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Variety</label>
+                    <input name="pvariety" defaultValue={editingPlant?.plant.variety} placeholder="E.g. Thai Sweet" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all" />
                  </div>
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Planted Date</label>
-                    <input name="pdate" type="date" defaultValue={editingPlant?.plant.plantedDate || new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold" />
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Planted Date</label>
+                    <input name="pdate" type="date" defaultValue={editingPlant?.plant.plantedDate || new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
                  </div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">{editingPlant ? 'Save Changes' : 'Add to Garden'}</Button>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">Save Plant</Button>
               </form>
            </div>
         </div>
@@ -1072,22 +1014,22 @@ export default function App() {
 
       {/* Harvest Modal */}
       {isHarvestModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[220] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-white rounded-[3rem] w-full max-w-md shadow-2xl p-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-10">
                  <h3 className="text-3xl font-black text-slate-800 tracking-tight">Record Harvest</h3>
-                 <button onClick={() => { setIsHarvestModalOpen(false); setSelectedPlantId(null); }} className="p-2 text-slate-300 hover:text-slate-600 transition-colors outline-none"><X size={32}/></button>
+                 <button onClick={() => { setIsHarvestModalOpen(false); }} className="p-2 text-slate-300 hover:text-slate-600 outline-none"><X size={32}/></button>
               </div>
               <form onSubmit={saveHarvest} className="space-y-6">
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Amount (grams)</label>
-                    <input name="hamount" type="number" step="0.1" placeholder="0.0" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all text-xl font-black" />
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Amount (grams)</label>
+                    <input name="hamount" type="number" step="0.1" placeholder="0.0" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 text-xl font-black" />
                  </div>
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 block tracking-widest">Date</label>
-                    <input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-emerald-500 transition-all font-bold" />
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Date</label>
+                    <input name="hdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
                  </div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">Log Harvest</Button>
+                 <Button type="submit" className="w-full py-5 text-xl shadow-lg mt-4">Log Yield</Button>
               </form>
            </div>
         </div>
