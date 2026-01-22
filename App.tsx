@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Sprout, 
@@ -21,10 +21,13 @@ import {
   TrendingUp,
   Loader2,
   MessageSquare,
-  Send
+  Send,
+  Camera,
+  Activity
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
+import { GoogleGenAI } from "@google/genai";
 
 // --- Shared UI Components ---
 
@@ -161,12 +164,16 @@ export default function App() {
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [isPlantDetailOpen, setIsPlantDetailOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
   const [plantDetailTab, setPlantDetailTab] = useState<'overview' | 'notes'>('overview');
   const [newNoteText, setNewNoteText] = useState('');
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
@@ -227,8 +234,6 @@ export default function App() {
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
 
     setIsAiLoading(true);
-    
-    // Predict growth with AI
     const projection = await predictGrowthTimeline(name, variety, plantedDate);
     
     const newPlant: Plant = { 
@@ -253,11 +258,16 @@ export default function App() {
   const addPlantNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGardenId || !selectedPlantId || !newNoteText.trim()) return;
+    submitNote(newNoteText.trim());
+    setNewNoteText('');
+  };
 
+  const submitNote = (content: string) => {
+    if (!selectedGardenId || !selectedPlantId) return;
     const newNote: GardenNote = {
       id: Date.now().toString(),
       date: new Date().toLocaleString(),
-      content: newNoteText.trim()
+      content: content
     };
 
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
@@ -267,8 +277,6 @@ export default function App() {
         notes: [newNote, ...(p.notes || [])]
       } : p)
     } : g));
-    
-    setNewNoteText('');
   };
 
   const deletePlantNote = (noteId: string) => {
@@ -280,6 +288,53 @@ export default function App() {
         notes: (p.notes || []).filter(n => n.id !== noteId)
       } : p)
     } : g));
+  };
+
+  const handleAiScan = async () => {
+    if (!selectedGardenId || !selectedPlantId) return;
+    setIsScanning(true);
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        
+        // Wait a second for camera to stabilize
+        await new Promise(r => setTimeout(r, 1000));
+        
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        if (canvas && video) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext('2d')?.drawImage(video, 0, 0);
+          const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+          
+          // Stop camera
+          stream.getTracks().forEach(track => track.stop());
+
+          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+              parts: [
+                { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
+                { text: `Analyze the health of this "${inspectedPlant?.name}" plant. Identify any nutrient deficiencies, pests, or growth issues. Keep the response concise and grower-focused.` }
+              ]
+            }
+          });
+
+          const result = response.text || "Scan complete. No obvious issues detected.";
+          submitNote(`🤖 AI Health Scan: ${result}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Camera access failed or AI analysis was interrupted.");
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const updateStage = (stage: LifecycleStage) => {
@@ -301,6 +356,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
+      {/* Hidden elements for scanning */}
+      <video ref={videoRef} className="hidden" />
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* --- Sidebar --- */}
       <nav className="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col p-4 md:p-6 space-y-8 z-50">
         <div className="flex items-center space-x-3 px-2">
@@ -373,50 +432,94 @@ export default function App() {
                     <h3 className="text-xl font-black text-slate-800">Specimen Directory</h3>
                     <Button onClick={() => setIsPlantModalOpen(true)} variant="outline" className="text-xs py-1.5"><Plus size={16} /><span>Add Specimen</span></Button>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-6">
                     {(selectedGarden.plants || []).map(p => (
-                      <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 flex flex-col md:flex-row items-start md:items-center justify-between hover:border-emerald-200 transition-all group">
-                        <div className="flex items-center space-x-5">
-                          <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm">
-                            <Sprout size={28} />
+                      <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-6 flex flex-col hover:border-emerald-200 transition-all group overflow-hidden">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-5">
+                            <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm">
+                              <Sprout size={28} />
+                            </div>
+                            <div>
+                              <h4 className="font-black text-slate-800 text-lg leading-tight">{p.name}</h4>
+                              <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Heirloom'}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-black text-slate-800 text-lg leading-tight">{p.name}</h4>
-                            <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Standard Breed'}</p>
-                            {p.projection && (
-                              <div className="flex items-center gap-1 mt-1 text-emerald-600 text-[10px] font-black uppercase tracking-wider">
-                                <Sparkles size={10} /> AI Projected
-                              </div>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => { setSelectedPlantId(p.id); setPlantDetailTab('notes'); setIsPlantDetailOpen(true); }}
+                              className="p-2.5 bg-white text-slate-400 hover:text-emerald-600 rounded-xl shadow-sm border border-slate-100 transition-all"
+                              title="Quick Note"
+                            >
+                              <MessageSquare size={18} />
+                            </button>
+                            <button 
+                              onClick={() => { setSelectedPlantId(p.id); setPlantDetailTab('overview'); setIsPlantDetailOpen(true); }}
+                              className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" 
+                              title="Manage Specimen"
+                            >
+                              <ExternalLink size={18} />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 mt-4 md:mt-0">
-                          <div className="px-4 py-2 bg-white rounded-xl text-center min-w-[110px]">
-                            <span className="block text-[10px] text-slate-400 uppercase font-black">Phase</span>
-                            <span className="text-xs font-black text-slate-700">{p.stage}</span>
-                          </div>
-                          <button onClick={() => { setSelectedPlantId(p.id); setPlantDetailTab('overview'); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" title="Manage Specimen">
-                            <ExternalLink size={18} />
-                          </button>
+
+                        {/* Plant Preview Info */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                           <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100">
+                             <span className="block text-[8px] text-slate-400 uppercase font-black">Age</span>
+                             <span className="text-xs font-black text-slate-700">{calculateAge(p.plantedDate)} Days</span>
+                           </div>
+                           <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100">
+                             <span className="block text-[8px] text-slate-400 uppercase font-black">Phase</span>
+                             <span className="text-xs font-black text-emerald-600">{p.stage}</span>
+                           </div>
                         </div>
+
+                        {/* Latest Note Preview */}
+                        {p.notes && p.notes.length > 0 ? (
+                          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50 italic text-slate-600 text-[11px] line-clamp-2">
+                             <span className="font-black uppercase text-[8px] text-emerald-700 block mb-1">Latest Log ({p.notes[0].date})</span>
+                             "{p.notes[0].content}"
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-2xl border border-dashed border-slate-200 text-slate-300 text-[10px] text-center uppercase font-black">
+                            No logs yet
+                          </div>
+                        )}
                       </div>
                     ))}
+                    {selectedGarden.plants.length === 0 && (
+                      <div className="text-center py-16 opacity-30 grayscale">
+                        <Sprout size={64} className="mx-auto mb-4" />
+                        <p className="font-black uppercase tracking-widest text-xs">Garden Empty</p>
+                      </div>
+                    )}
                   </div>
                 </Card>
               </div>
-              <Card className="bg-slate-900 text-white h-fit">
-                <h4 className="font-black mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Calendar size={18}/> System Stats</h4>
-                <div className="space-y-4">
-                  <div className="p-4 bg-white/5 rounded-2xl">
-                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Established On</p>
-                    <p className="font-bold text-emerald-400">{selectedGarden.startedDate}</p>
+
+              <div className="space-y-6">
+                <Card className="bg-slate-900 text-white h-fit">
+                  <h4 className="font-black mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Calendar size={18}/> Garden Profile</h4>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-white/5 rounded-2xl">
+                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Established On</p>
+                      <p className="font-bold text-emerald-400">{selectedGarden.startedDate}</p>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-2xl">
+                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Type</p>
+                      <p className="font-bold">{selectedGarden.type}</p>
+                    </div>
                   </div>
-                  <div className="p-4 bg-white/5 rounded-2xl">
-                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Type</p>
-                    <p className="font-bold">{selectedGarden.type}</p>
+                </Card>
+
+                <Card className="bg-white">
+                  <h4 className="font-black mb-4 flex items-center gap-2 text-slate-800"><Activity size={18}/> Quick Tips</h4>
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                     <p className="text-[11px] text-emerald-800 font-medium italic">"Keep your nutrient solution between 18-22°C to maximize oxygen levels."</p>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             </div>
           </div>
         )}
@@ -560,21 +663,39 @@ export default function App() {
                  ) : (
                    <div className="space-y-8 animate-in slide-in-from-right-4">
                       {/* Note Input */}
-                      <form onSubmit={addPlantNote} className="relative">
-                        <textarea 
-                          value={newNoteText}
-                          onChange={(e) => setNewNoteText(e.target.value)}
-                          placeholder="Log specimen progress, observations, or feeding changes..."
-                          className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] outline-none focus:border-emerald-500 font-medium text-slate-700 resize-none min-h-[140px] pr-16"
-                        />
-                        <button 
-                          type="submit"
-                          disabled={!newNoteText.trim()}
-                          className="absolute bottom-4 right-4 w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
-                        >
-                          <Send size={20} />
-                        </button>
-                      </form>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                         <div className="sm:col-span-3">
+                            <form onSubmit={addPlantNote} className="relative">
+                              <textarea 
+                                value={newNoteText}
+                                onChange={(e) => setNewNoteText(e.target.value)}
+                                placeholder="Log specimen progress, observations..."
+                                className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] outline-none focus:border-emerald-500 font-medium text-slate-700 resize-none min-h-[140px] pr-16"
+                              />
+                              <button 
+                                type="submit"
+                                disabled={!newNoteText.trim()}
+                                className="absolute bottom-4 right-4 w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
+                              >
+                                <Send size={20} />
+                              </button>
+                            </form>
+                         </div>
+                         <div className="sm:col-span-1">
+                            <button 
+                              onClick={handleAiScan}
+                              disabled={isScanning}
+                              className={`w-full h-full flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 border-dashed transition-all ${isScanning ? 'border-emerald-500 bg-emerald-50 animate-pulse-subtle' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30'}`}
+                            >
+                               {isScanning ? (
+                                 <Loader2 className="animate-spin text-emerald-600 mb-2" size={32} />
+                               ) : (
+                                 <Camera className="text-slate-400 mb-2" size={32} />
+                               )}
+                               <span className="text-[10px] font-black uppercase text-center">{isScanning ? 'Analyzing...' : 'Gemini AI Health Scan'}</span>
+                            </button>
+                         </div>
+                      </div>
 
                       {/* Notes List */}
                       <div className="space-y-4">

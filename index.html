@@ -17,6 +17,11 @@
         ::-webkit-scrollbar-track { background: #f8fafc; }
         ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        @keyframes pulse-subtle {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        .animate-pulse-subtle { animation: pulse-subtle 2s infinite; }
     </style>
 <script type="importmap">
 {
