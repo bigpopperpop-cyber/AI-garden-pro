@@ -26,7 +26,15 @@ import {
   Activity,
   FileText,
   Printer,
-  FileSpreadsheet
+  FileSpreadsheet,
+  HelpCircle,
+  Heart,
+  Info,
+  ShieldCheck,
+  Repeat,
+  Upload,
+  Smartphone,
+  Laptop
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
@@ -175,6 +183,7 @@ export default function App() {
   const [plantDetailTab, setPlantDetailTab] = useState<'overview' | 'notes'>('overview');
   const [newNoteText, setNewNoteText] = useState('');
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -302,6 +311,27 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (Array.isArray(json) && confirm("This will replace all current garden data. Continue?")) {
+          setGardens(json);
+          alert("Database successfully restored!");
+        } else {
+          alert("Invalid backup file format.");
+        }
+      } catch (err) {
+        alert("Failed to parse the backup file.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const saveGarden = (e: React.FormEvent<HTMLFormElement>) => {
@@ -463,6 +493,13 @@ export default function App() {
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       <video ref={videoRef} className="hidden" />
       <canvas ref={canvasRef} className="hidden" />
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImportData} 
+        accept=".json" 
+        className="hidden" 
+      />
 
       {/* --- Sidebar --- */}
       <nav className="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col p-4 md:p-6 space-y-8 z-50">
@@ -614,37 +651,152 @@ export default function App() {
         )}
 
         {view === 'settings' && (
-          <div className="max-w-2xl mx-auto py-10 space-y-8">
-            <Card className="p-10 text-center">
-              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6"><FileText size={32} /></div>
-              <h3 className="text-2xl font-black mb-2">Export Summary</h3>
-              <p className="text-slate-400 text-sm mb-8">Generate a report of your current growth cycle to share or analyze.</p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Button variant="primary" className="py-4 shadow-xl" onClick={handleExportPDF}>
-                  <Printer size={18}/><span>PDF Summary</span>
-                </Button>
-                <Button variant="outline" className="py-4 border-emerald-600 text-emerald-600 bg-white hover:bg-emerald-50" onClick={handleExportExcel}>
-                  <FileSpreadsheet size={18}/><span>Excel (CSV)</span>
-                </Button>
+          <div className="max-w-4xl mx-auto py-10 space-y-8 animate-in slide-in-from-bottom-6">
+            
+            {/* Privacy and Data Safety Panel */}
+            <Card className="p-8 border-l-8 border-l-emerald-500">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                  <ShieldCheck size={28} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">Your Data is Private</h3>
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">Local-First Architecture</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-slate-600 leading-relaxed">
+                <div>
+                  <p className="font-bold text-slate-800 mb-2">Zero Cloud Storage</p>
+                  <p>All garden logs, specimen details, and environmental settings are stored directly in your browser's <span className="font-mono bg-slate-100 px-1 rounded">localStorage</span>. We never send your personal garden data to our servers.</p>
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800 mb-2">AI Processing Safety</p>
+                  <p>When you use the AI Health Scan, only the specific image and question are processed via the Gemini API to provide diagnostics. This session is transient and not stored permanently.</p>
+                </div>
               </div>
             </Card>
 
-            <Card className="p-10 text-center">
-              <div className="w-16 h-16 bg-slate-100 text-slate-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Settings size={32} /></div>
-              <h3 className="text-2xl font-black mb-8">Data Controls</h3>
-              <div className="space-y-4">
-                <Button variant="secondary" className="w-full" onClick={() => {
-                   const data = JSON.stringify(gardens, null, 2);
-                   const blob = new Blob([data], { type: 'application/json' });
-                   const url = URL.createObjectURL(blob);
-                   const a = document.createElement('a');
-                   a.href = url;
-                   a.download = `hydro-backup.json`;
-                   a.click();
-                }}><Download size={18}/><span>Backup Database (JSON)</span></Button>
-                <Button variant="danger" className="w-full" onClick={() => { if(confirm("Permanently wipe local user data?")) { localStorage.clear(); window.location.reload(); } }}><Trash2 size={18}/><span>Wipe App Storage</span></Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Migration Guide Card */}
+              <Card className="p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                    <Repeat size={24} />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800">Data Migration</h3>
+                </div>
+                <p className="text-sm text-slate-500 mb-6 italic">Moving to a new phone or computer? Follow these steps:</p>
+                <div className="space-y-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <Laptop size={20} className="text-slate-400" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Step 1: Export on Current Device</p>
+                      <p className="text-xs text-slate-500">Use the "Backup Database" button below to save a <span className="font-bold">.json</span> file.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <Smartphone size={20} className="text-slate-400" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Step 2: Move File to New Device</p>
+                      <p className="text-xs text-slate-500">Email the file to yourself or use a USB drive to transfer it.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                      <Upload size={20} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Step 3: Restore on New Device</p>
+                      <p className="text-xs text-slate-500">Open this app on the new device and click "Restore Database".</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <div className="space-y-8">
+                {/* Export/Import Controls */}
+                <Card className="p-8 text-center flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center mb-6"><Activity size={32} /></div>
+                  <h3 className="text-xl font-black mb-6">Manage Records</h3>
+                  <div className="space-y-3 w-full">
+                    <Button variant="secondary" className="w-full" onClick={() => {
+                       const data = JSON.stringify(gardens, null, 2);
+                       const blob = new Blob([data], { type: 'application/json' });
+                       const url = URL.createObjectURL(blob);
+                       const a = document.createElement('a');
+                       a.href = url;
+                       a.download = `hydrogrow-backup-${new Date().toISOString().split('T')[0]}.json`;
+                       a.click();
+                    }}><Download size={18}/><span>Backup Database (.json)</span></Button>
+                    
+                    <Button variant="outline" className="w-full border-slate-200 text-slate-600 bg-white" onClick={() => fileInputRef.current?.click()}>
+                      <Upload size={18}/><span>Restore Database</span>
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* Donation Card */}
+                <Card className="p-8 bg-slate-900 text-white relative overflow-hidden">
+                   <Heart className="absolute -bottom-4 -right-4 w-24 h-24 text-rose-500/10 -rotate-12" />
+                   <div className="relative z-10">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-rose-500 text-white rounded-xl">
+                          <Heart size={20} fill="currentColor" />
+                        </div>
+                        <h3 className="text-xl font-black">Support the Project</h3>
+                      </div>
+                      <p className="text-slate-400 text-xs mb-6 leading-relaxed">Your support helps us keep building features for the community!</p>
+                      <a 
+                        href="#" 
+                        className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all border border-slate-700"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          alert("Send your donation to gizmooo@yahoo.com via PayPal. Thank you for your support!");
+                          window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gizmooo@yahoo.com&currency_code=USD`, '_blank');
+                        }}
+                      >
+                        <Heart size={18} className="text-rose-500" />
+                        <span>Donate via PayPal</span>
+                      </a>
+                   </div>
+                </Card>
               </div>
+            </div>
+
+            {/* Beginner Guide Card */}
+            <Card className="p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                  <HelpCircle size={24} />
+                </div>
+                <h3 className="text-xl font-black text-slate-800">Quick Start Tips</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="p-4 bg-slate-50 rounded-2xl">
+                  <p className="font-bold text-slate-700 text-xs mb-1">pH Balance</p>
+                  <p className="text-[11px] text-slate-500">Aim for 5.5 to 6.5. Fluctuations can block nutrient uptake.</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl">
+                  <p className="font-bold text-slate-700 text-xs mb-1">Lighting</p>
+                  <p className="text-[11px] text-slate-500">Indoors needs 14-16 hours of light. Use a timer for consistency.</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl">
+                  <p className="font-bold text-slate-700 text-xs mb-1">Water Temp</p>
+                  <p className="text-[11px] text-slate-500">Maintain 18-22°C (65-72°F) for peak oxygen levels.</p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Danger Zone */}
+            <Card className="p-10 border-rose-100 bg-rose-50/20 text-center">
+              <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div>
+              <h3 className="text-2xl font-black mb-4 text-rose-900">Danger Zone</h3>
+              <p className="text-rose-700/60 text-sm mb-6 max-w-sm mx-auto">This action cannot be undone. All gardens and specimen history will be permanently erased from this browser.</p>
+              <Button variant="danger" className="px-10" onClick={() => { if(confirm("Permanently wipe local user data?")) { localStorage.clear(); window.location.reload(); } }}>Wipe App Storage</Button>
             </Card>
           </div>
         )}
