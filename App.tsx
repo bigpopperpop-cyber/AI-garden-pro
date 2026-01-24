@@ -37,7 +37,11 @@ import {
   Laptop,
   BarChart3,
   History,
-  ClipboardList
+  ClipboardList,
+  Share2,
+  Link as LinkIcon,
+  Copy,
+  Check
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
@@ -83,7 +87,7 @@ const calculateAge = (date: string) => {
 
 // --- Dashboard View ---
 
-const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExportPDF, onExportExcel }: any) => {
+const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExportPDF, onExportExcel, onShareWorkspace }: any) => {
   const allPlants = gardens.flatMap((g: Garden) => g.plants);
   const totalPlants = allPlants.length;
   
@@ -167,8 +171,8 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExpo
             <Button onClick={onExportPDF} className="w-full py-4 shadow-xl">
               <Printer size={18} /><span>Generate PDF Report</span>
             </Button>
-            <Button onClick={onExportExcel} variant="outline" className="w-full py-4 bg-white">
-              <FileSpreadsheet size={18} /><span>Export History (CSV)</span>
+            <Button onClick={onShareWorkspace} variant="outline" className="w-full py-4 bg-white border-emerald-100 text-emerald-600">
+              <Share2 size={18} /><span>Share Workspace Link</span>
             </Button>
             <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Reports include full history</p>
           </div>
@@ -301,6 +305,9 @@ export default function App() {
   const [isPlantDetailOpen, setIsPlantDetailOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState<Garden[] | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
   
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
@@ -315,14 +322,59 @@ export default function App() {
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
 
-  // Persistence
+  // Persistence & URL Import Handling
   useEffect(() => {
     localStorage.setItem('hydro_gardens_single_user', JSON.stringify(gardens));
   }, [gardens]);
 
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedData = urlParams.get('workspace');
+    if (sharedData) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(sharedData)));
+        if (Array.isArray(decoded)) {
+          setPendingImportData(decoded);
+          setIsImportModalOpen(true);
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (err) {
+        console.error("Failed to decode shared workspace:", err);
+      }
+    }
+  }, []);
+
   const handleGardenSelect = (id: string) => {
     setSelectedGardenId(id);
     setView('gardens');
+  };
+
+  const handleShareWorkspace = () => {
+    try {
+      const json = JSON.stringify(gardens);
+      const encoded = btoa(encodeURIComponent(json));
+      const shareUrl = `${window.location.origin}${window.location.pathname}?workspace=${encoded}`;
+      
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopyFeedback(true);
+        setTimeout(() => setCopyFeedback(false), 3000);
+      });
+    } catch (err) {
+      alert("Failed to generate share link. Your workspace might be too large for a URL.");
+    }
+  };
+
+  const handleImportWorkspace = (merge: boolean) => {
+    if (!pendingImportData) return;
+    if (merge) {
+      setGardens(prev => [...prev, ...pendingImportData]);
+    } else {
+      setGardens(pendingImportData);
+    }
+    setIsImportModalOpen(false);
+    setPendingImportData(null);
+    alert("Workspace successfully imported!");
   };
 
   const handleExportPDF = () => {
@@ -651,7 +703,15 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-32">
+      <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-32 relative">
+        {/* Copy Feedback Toast */}
+        {copyFeedback && (
+          <div className="fixed top-6 right-6 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4 z-[300]">
+            <Check size={18} />
+            <span className="font-bold">Share link copied to clipboard!</span>
+          </div>
+        )}
+
         <header className="flex justify-between items-center mb-10">
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">{selectedGarden ? selectedGarden.name : view}</h1>
@@ -664,7 +724,7 @@ export default function App() {
           )}
         </header>
 
-        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareWorkspace={handleShareWorkspace} />}
 
         {view === 'gardens' && !selectedGarden && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
@@ -804,6 +864,24 @@ export default function App() {
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Sharable Link Section */}
+              <Card className="p-8 bg-emerald-50/30 border border-emerald-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-emerald-600 text-white rounded-2xl">
+                    <LinkIcon size={24} />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800">Sharable Link</h3>
+                </div>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                  Generate a unique URL that contains your entire garden workspace. 
+                  Share this link with a friend or use it to instantly sync your data to another device.
+                </p>
+                <Button onClick={handleShareWorkspace} className="w-full py-4">
+                  <Copy size={18}/><span>Copy Sharable Workspace Link</span>
+                </Button>
+                <p className="text-[10px] text-center text-slate-400 mt-4 font-black uppercase tracking-tighter">Link expires when you close this window (State is in URL)</p>
+              </Card>
+
               {/* Migration Guide Card */}
               <Card className="p-8">
                 <div className="flex items-center gap-3 mb-6">
@@ -906,6 +984,26 @@ export default function App() {
       </main>
 
       {/* --- MODALS --- */}
+
+      {/* Import Confirmation Modal */}
+      {isImportModalOpen && pendingImportData && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
+           <div className="bg-white rounded-[3.5rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
+                 <LinkIcon size={40} />
+              </div>
+              <h3 className="text-3xl font-black text-center text-slate-800 mb-4 tracking-tight">Shared Workspace Detected</h3>
+              <p className="text-slate-500 text-center font-medium mb-10">
+                You've opened a link containing <span className="text-emerald-600 font-bold">{pendingImportData.length} shared gardens</span>. How would you like to proceed?
+              </p>
+              <div className="space-y-4">
+                 <Button onClick={() => handleImportWorkspace(true)} className="w-full py-5 text-lg">Merge with Current Gardens</Button>
+                 <Button onClick={() => handleImportWorkspace(false)} variant="secondary" className="w-full py-4 text-slate-600">Replace Current Gardens</Button>
+                 <button onClick={() => setIsImportModalOpen(false)} className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors uppercase text-xs tracking-widest">Discard Shared Data</button>
+              </div>
+           </div>
+        </div>
+      )}
 
       {isPlantDetailOpen && inspectedPlant && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
