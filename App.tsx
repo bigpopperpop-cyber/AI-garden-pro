@@ -894,30 +894,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Beginner Guide Card */}
-            <Card className="p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                  <HelpCircle size={24} />
-                </div>
-                <h3 className="text-xl font-black text-slate-800">Quick Start Tips</h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="p-4 bg-slate-50 rounded-2xl">
-                  <p className="font-bold text-slate-700 text-xs mb-1">pH Balance</p>
-                  <p className="text-[11px] text-slate-500">Aim for 5.5 to 6.5. Fluctuations can block nutrient uptake.</p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl">
-                  <p className="font-bold text-slate-700 text-xs mb-1">Lighting</p>
-                  <p className="text-[11px] text-slate-500">Indoors needs 14-16 hours of light. Use a timer for consistency.</p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl">
-                  <p className="font-bold text-slate-700 text-xs mb-1">Water Temp</p>
-                  <p className="text-[11px] text-slate-500">Maintain 18-22°C (65-72°F) for peak oxygen levels.</p>
-                </div>
-              </div>
-            </Card>
-
             {/* Danger Zone */}
             <Card className="p-10 border-rose-100 bg-rose-50/20 text-center">
               <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div>
