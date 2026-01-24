@@ -41,7 +41,8 @@ import {
   Share2,
   Link as LinkIcon,
   Copy,
-  Check
+  Check,
+  Globe
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
@@ -87,7 +88,7 @@ const calculateAge = (date: string) => {
 
 // --- Dashboard View ---
 
-const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExportPDF, onExportExcel, onShareWorkspace }: any) => {
+const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExportPDF, onExportExcel, onShareWorkspace, onShareApp }: any) => {
   const allPlants = gardens.flatMap((g: Garden) => g.plants);
   const totalPlants = allPlants.length;
   
@@ -120,8 +121,19 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExpo
              </div>
              <span className="font-bold text-emerald-100 uppercase tracking-widest text-[10px]">Grower Mode Active</span>
           </div>
-          <h2 className="text-4xl font-black mb-2 tracking-tight">Growth Dashboard</h2>
-          <p className="text-emerald-50/90 font-medium italic text-lg opacity-80">"Track your growing Journey effortlessly."</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-4xl font-black mb-2 tracking-tight">Growth Dashboard</h2>
+              <p className="text-emerald-50/90 font-medium italic text-lg opacity-80">"Track your growing Journey effortlessly."</p>
+            </div>
+            <button 
+              onClick={onShareApp}
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl backdrop-blur-md transition-all border border-white/10 flex items-center gap-2 text-xs font-black uppercase tracking-widest"
+              title="Share App"
+            >
+              <Globe size={16} /> Share Tool
+            </button>
+          </div>
           
           <div className="flex gap-4 mt-8">
             <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl">
@@ -172,9 +184,9 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExpo
               <Printer size={18} /><span>Generate PDF Report</span>
             </Button>
             <Button onClick={onShareWorkspace} variant="outline" className="w-full py-4 bg-white border-emerald-100 text-emerald-600">
-              <Share2 size={18} /><span>Share Workspace Link</span>
+              <Share2 size={18} /><span>Share Workspace</span>
             </Button>
-            <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Reports include full history</p>
+            <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Workspace includes all data</p>
           </div>
         </div>
       </Card>
@@ -307,7 +319,7 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [pendingImportData, setPendingImportData] = useState<Garden[] | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
@@ -357,12 +369,20 @@ export default function App() {
       const shareUrl = `${window.location.origin}${window.location.pathname}?workspace=${encoded}`;
       
       navigator.clipboard.writeText(shareUrl).then(() => {
-        setCopyFeedback(true);
-        setTimeout(() => setCopyFeedback(false), 3000);
+        setCopyFeedback("Workspace link copied to clipboard!");
+        setTimeout(() => setCopyFeedback(null), 3000);
       });
     } catch (err) {
       alert("Failed to generate share link. Your workspace might be too large for a URL.");
     }
+  };
+
+  const handleShareApp = () => {
+    const appUrl = `${window.location.origin}${window.location.pathname}`;
+    navigator.clipboard.writeText(appUrl).then(() => {
+      setCopyFeedback("App link copied to clipboard!");
+      setTimeout(() => setCopyFeedback(null), 3000);
+    });
   };
 
   const handleImportWorkspace = (merge: boolean) => {
@@ -708,7 +728,7 @@ export default function App() {
         {copyFeedback && (
           <div className="fixed top-6 right-6 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4 z-[300]">
             <Check size={18} />
-            <span className="font-bold">Share link copied to clipboard!</span>
+            <span className="font-bold">{copyFeedback}</span>
           </div>
         )}
 
@@ -724,7 +744,7 @@ export default function App() {
           )}
         </header>
 
-        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareWorkspace={handleShareWorkspace} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareWorkspace={handleShareWorkspace} onShareApp={handleShareApp} />}
 
         {view === 'gardens' && !selectedGarden && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
@@ -868,18 +888,26 @@ export default function App() {
               <Card className="p-8 bg-emerald-50/30 border border-emerald-100">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="p-3 bg-emerald-600 text-white rounded-2xl">
-                    <LinkIcon size={24} />
+                    <Share2 size={24} />
                   </div>
-                  <h3 className="text-xl font-black text-slate-800">Sharable Link</h3>
+                  <h3 className="text-xl font-black text-slate-800">Sharing & Export</h3>
                 </div>
-                <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                  Generate a unique URL that contains your entire garden workspace. 
-                  Share this link with a friend or use it to instantly sync your data to another device.
-                </p>
-                <Button onClick={handleShareWorkspace} className="w-full py-4">
-                  <Copy size={18}/><span>Copy Sharable Workspace Link</span>
-                </Button>
-                <p className="text-[10px] text-center text-slate-400 mt-4 font-black uppercase tracking-tighter">Link expires when you close this window (State is in URL)</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-black uppercase text-slate-400 mb-2">Workspace (Data Sync)</p>
+                    <Button onClick={handleShareWorkspace} className="w-full py-4 bg-emerald-600 text-white">
+                      <Copy size={18}/><span>Copy Workspace Link</span>
+                    </Button>
+                    <p className="text-[9px] text-slate-500 mt-1 italic">Includes all gardens, plants, and history in the URL.</p>
+                  </div>
+                  <div className="pt-2 border-t border-emerald-100">
+                    <p className="text-xs font-black uppercase text-slate-400 mb-2">Application Link</p>
+                    <Button onClick={handleShareApp} variant="outline" className="w-full py-4 bg-white border-emerald-200 text-emerald-700">
+                      <Globe size={18}/><span>Copy App Link</span>
+                    </Button>
+                    <p className="text-[9px] text-slate-500 mt-1 italic">Share a clean link to this tool without your data.</p>
+                  </div>
+                </div>
               </Card>
 
               {/* Migration Guide Card */}
@@ -890,24 +918,15 @@ export default function App() {
                   </div>
                   <h3 className="text-xl font-black text-slate-800">Data Migration</h3>
                 </div>
-                <p className="text-sm text-slate-500 mb-6 italic">Moving to a new phone or computer? Follow these steps:</p>
+                <p className="text-sm text-slate-500 mb-6 italic">Moving to a new device? Follow these steps:</p>
                 <div className="space-y-6">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
                       <Laptop size={20} className="text-slate-400" />
                     </div>
                     <div>
-                      <p className="font-bold text-sm">Step 1: Export on Current Device</p>
-                      <p className="text-xs text-slate-500">Use the "Backup Database" button below to save a <span className="font-bold">.json</span> file.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                      <Smartphone size={20} className="text-slate-400" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Step 2: Move File to New Device</p>
-                      <p className="text-xs text-slate-500">Email the file to yourself or use a USB drive to transfer it.</p>
+                      <p className="font-bold text-sm">Step 1: Export Database</p>
+                      <p className="text-xs text-slate-500">Save a <span className="font-bold">.json</span> file from the panel below.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
@@ -915,8 +934,8 @@ export default function App() {
                       <Upload size={20} className="text-emerald-600" />
                     </div>
                     <div>
-                      <p className="font-bold text-sm">Step 3: Restore on New Device</p>
-                      <p className="text-xs text-slate-500">Open this app on the new device and click "Restore Database".</p>
+                      <p className="font-bold text-sm">Step 2: Restore Elsewhere</p>
+                      <p className="text-xs text-slate-500">Open this tool elsewhere and import that file.</p>
                     </div>
                   </div>
                 </div>
