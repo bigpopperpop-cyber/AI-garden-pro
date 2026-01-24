@@ -34,7 +34,10 @@ import {
   Repeat,
   Upload,
   Smartphone,
-  Laptop
+  Laptop,
+  BarChart3,
+  History,
+  ClipboardList
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
@@ -70,10 +73,37 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
   );
 };
 
+// --- Helper Functions ---
+const calculateAge = (date: string) => {
+  const start = new Date(date);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  return diff < 0 ? 0 : diff;
+};
+
 // --- Dashboard View ---
 
-const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any) => {
-  const totalPlants = gardens.reduce((acc: number, g: Garden) => acc + (g.plants?.length || 0), 0);
+const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExportPDF, onExportExcel }: any) => {
+  const allPlants = gardens.flatMap((g: Garden) => g.plants);
+  const totalPlants = allPlants.length;
+  
+  // Summary Metrics
+  const avgAge = totalPlants > 0 
+    ? Math.round(allPlants.reduce((acc: number, p: Plant) => acc + calculateAge(p.plantedDate), 0) / totalPlants) 
+    : 0;
+  
+  const stageCounts = allPlants.reduce((acc: any, p: Plant) => {
+    acc[p.stage] = (acc[p.stage] || 0) + 1;
+    return acc;
+  }, {});
+
+  const floweringCount = stageCounts['Flowering'] || 0;
+  const germinationCount = stageCounts['Germination'] || 0;
+
+  const latestNotes = gardens
+    .flatMap((g: Garden) => g.plants.flatMap((p: Plant) => p.notes.map(n => ({ ...n, plantName: p.name }))))
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 3);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -102,53 +132,148 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect }: any)
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Card>
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-black text-slate-800">Your Gardens</h3>
-            <button onClick={() => setView('gardens')} className="text-emerald-600 text-xs font-black uppercase hover:underline">Manage All</button>
+      {/* --- Operations Summary Card --- */}
+      <Card className="border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50/20">
+        <div className="flex flex-col lg:flex-row justify-between gap-8">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-4">
+              <ClipboardList className="text-emerald-600" size={24} />
+              <h3 className="text-xl font-black text-slate-800">Operations Summary</h3>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Status</p>
+                <p className="text-lg font-black text-emerald-600">{totalPlants > 0 ? 'Active' : 'Standby'}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Flowering</p>
+                <p className="text-lg font-black text-blue-600">{floweringCount}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-1">New Seeds</p>
+                <p className="text-lg font-black text-amber-500">{germinationCount}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Avg Age</p>
+                <p className="text-lg font-black text-slate-700">{avgAge}d</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-500 leading-relaxed max-w-2xl italic">
+              Currently monitoring <span className="font-bold text-slate-800">{gardens.length} gardens</span> with <span className="font-bold text-slate-800">{totalPlants} specimen(s)</span>. 
+              {floweringCount > 0 ? ` You have ${floweringCount} specimen(s) in the flowering stage—ensure nutrient concentrations are adjusted.` : ' All systems are within normal parameters.'}
+            </p>
           </div>
-          <div className="space-y-4">
-            {gardens.slice(0, 3).map((g: Garden) => (
-              <button key={g.id} onClick={() => onGardenSelect(g.id)} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all text-left outline-none group">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
-                    {g.type === 'Indoor' ? <Home size={18} /> : <Sun size={18} />}
+          <div className="lg:w-72 space-y-3">
+            <Button onClick={onExportPDF} className="w-full py-4 shadow-xl">
+              <Printer size={18} /><span>Generate PDF Report</span>
+            </Button>
+            <Button onClick={onExportExcel} variant="outline" className="w-full py-4 bg-white">
+              <FileSpreadsheet size={18} /><span>Export History (CSV)</span>
+            </Button>
+            <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Reports include full history</p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="md:col-span-1 space-y-8">
+          <Card className="bg-slate-900 text-white">
+            <div className="flex items-center gap-2 mb-6">
+              <BarChart3 size={20} className="text-emerald-400" />
+              <h3 className="text-lg font-black uppercase tracking-tight">Growth Analytics</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="pt-2">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-4">Phase Distribution</p>
+                <div className="space-y-2">
+                  {Object.entries(stageCounts).map(([stage, count]: any) => (
+                    <div key={stage} className="flex items-center gap-3">
+                      <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500" 
+                          style={{ width: `${(count / totalPlants) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 w-16 truncate">{stage}</span>
+                      <span className="text-[10px] font-black text-white">{count}</span>
+                    </div>
+                  ))}
+                  {allPlants.length === 0 && <p className="text-xs text-slate-500 italic">No data to display.</p>}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                <History size={18} className="text-emerald-600" /> Recent Activity
+              </h3>
+            </div>
+            <div className="space-y-4">
+              {latestNotes.map((note: any) => (
+                <div key={note.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="text-[10px] font-black text-emerald-600 uppercase truncate max-w-[120px]">{note.plantName}</span>
+                    <span className="text-[9px] text-slate-400">{note.date.split(',')[0]}</span>
                   </div>
+                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed italic">"{note.content}"</p>
+                </div>
+              ))}
+              {latestNotes.length === 0 && <p className="text-slate-400 text-center py-6 text-sm">No recent logs recorded.</p>}
+            </div>
+          </Card>
+        </div>
+
+        <div className="md:col-span-2 space-y-8">
+          <Card>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black text-slate-800">Your Gardens</h3>
+              <button onClick={() => setView('gardens')} className="text-emerald-600 text-xs font-black uppercase hover:underline">Manage All</button>
+            </div>
+            <div className="space-y-4">
+              {gardens.slice(0, 4).map((g: Garden) => (
+                <button key={g.id} onClick={() => onGardenSelect(g.id)} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all text-left outline-none group">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                      {g.type === 'Indoor' ? <Home size={18} /> : <Sun size={18} />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">{g.name}</p>
+                      <p className="text-[10px] text-slate-400 font-black uppercase">{g.plants?.length || 0} Specimens</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                </button>
+              ))}
+              {gardens.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-slate-400 text-sm mb-4">No gardens established yet.</p>
+                  <Button variant="outline" onClick={() => setView('gardens')}>Establish Garden</Button>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black text-slate-800">Environmental Alerts</h3>
+              <Bell size={18} className="text-slate-300" />
+            </div>
+            <div className="space-y-4">
+              {notifications.slice(0, 3).map((n: any) => (
+                <div key={n.id} className="flex items-start space-x-3 p-4 border-l-4 border-emerald-500 bg-emerald-50/30 rounded-r-2xl">
+                  <Clock size={16} className="text-emerald-600 mt-1 shrink-0" />
                   <div>
-                    <p className="font-bold text-slate-800">{g.name}</p>
-                    <p className="text-[10px] text-slate-400 font-black uppercase">{g.plants?.length || 0} Specimens</p>
+                    <p className="text-sm font-bold text-slate-800">{n.title}</p>
+                    <p className="text-xs text-slate-500">{n.message}</p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
-              </button>
-            ))}
-            {gardens.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-slate-400 text-sm mb-4">No gardens established yet.</p>
-                <Button variant="outline" onClick={() => setView('gardens')}>Establish Garden</Button>
-              </div>
-            )}
-          </div>
-        </Card>
-        <Card>
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-black text-slate-800">Environmental Alerts</h3>
-            <Bell size={18} className="text-slate-300" />
-          </div>
-          <div className="space-y-4">
-            {notifications.slice(0, 3).map((n: any) => (
-              <div key={n.id} className="flex items-start space-x-3 p-4 border-l-4 border-emerald-500 bg-emerald-50/30 rounded-r-2xl">
-                <Clock size={16} className="text-emerald-600 mt-1 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{n.title}</p>
-                  <p className="text-xs text-slate-500">{n.message}</p>
-                </div>
-              </div>
-            ))}
-            {notifications.length === 0 && <p className="text-slate-400 text-center py-6">All systems optimal.</p>}
-          </div>
-        </Card>
+              ))}
+              {notifications.length === 0 && <p className="text-slate-400 text-center py-6">All systems optimal.</p>}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -195,13 +320,6 @@ export default function App() {
     localStorage.setItem('hydro_gardens_single_user', JSON.stringify(gardens));
   }, [gardens]);
 
-  const calculateAge = (date: string) => {
-    const start = new Date(date);
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff < 0 ? 0 : diff;
-  };
-
   const handleGardenSelect = (id: string) => {
     setSelectedGardenId(id);
     setView('gardens');
@@ -226,17 +344,19 @@ export default function App() {
           .garden-meta { font-size: 12px; color: #64748b; margin-top: 5px; font-weight: 600; }
           .plant-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
           .plant-table th { text-align: left; font-size: 10px; text-transform: uppercase; color: #94a3b8; padding: 10px; border-bottom: 1px solid #e2e8f0; }
-          .plant-table td { padding: 15px 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+          .plant-table td { padding: 15px 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: top; }
           .tag { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
           .tag-phase { background: #ecfdf5; color: #059669; }
-          .note-preview { font-size: 12px; color: #64748b; font-style: italic; max-width: 300px; }
+          .note-list { margin: 0; padding: 0; list-style: none; font-size: 12px; color: #64748b; }
+          .note-item { margin-bottom: 4px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
+          .note-date { font-weight: 800; font-size: 9px; color: #94a3b8; }
           @media print { .no-print { display: none; } }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>HydroGrow Pro Report</h1>
-          <p>Garden Status Summary • Generated ${new Date().toLocaleDateString()}</p>
+          <p>Full Garden Status & History • Generated ${new Date().toLocaleDateString()}</p>
         </div>
         ${gardens.map(g => `
           <div class="garden-block">
@@ -247,21 +367,28 @@ export default function App() {
             <table class="plant-table">
               <thead>
                 <tr>
-                  <th>Specimen</th>
-                  <th>Variety</th>
-                  <th>Age</th>
-                  <th>Current Phase</th>
-                  <th>Latest Care Log</th>
+                  <th width="15%">Specimen</th>
+                  <th width="10%">Age</th>
+                  <th width="15%">Phase</th>
+                  <th width="60%">Log History</th>
                 </tr>
               </thead>
               <tbody>
                 ${g.plants.map(p => `
                   <tr>
-                    <td style="font-weight: 700;">${p.name}</td>
-                    <td>${p.variety || 'Heirloom'}</td>
+                    <td style="font-weight: 700;">${p.name}<br/><span style="font-weight: 400; font-size: 10px; color: #64748b;">${p.variety || 'Heirloom'}</span></td>
                     <td>${calculateAge(p.plantedDate)} Days</td>
                     <td><span class="tag tag-phase">${p.stage}</span></td>
-                    <td class="note-preview">${p.notes && p.notes.length > 0 ? p.notes[0].content.substring(0, 100) + (p.notes[0].content.length > 100 ? '...' : '') : 'No logs recorded.'}</td>
+                    <td>
+                      <div class="note-list">
+                        ${p.notes && p.notes.length > 0 ? p.notes.slice(0, 5).map(n => `
+                          <div class="note-item">
+                            <span class="note-date">${n.date}</span><br/>
+                            ${n.content}
+                          </div>
+                        `).join('') : '<span style="color: #cbd5e1; italic">No history recorded.</span>'}
+                      </div>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -278,14 +405,14 @@ export default function App() {
   };
 
   const handleExportExcel = () => {
-    const headers = ["Garden Name", "Type", "Plant Name", "Variety", "Planted Date", "Stage", "Age (Days)", "Latest Note"];
+    const headers = ["Garden Name", "Type", "Plant Name", "Variety", "Planted Date", "Stage", "Age (Days)", "History Logs"];
     const rows: string[][] = [];
     
     gardens.forEach(g => {
       g.plants.forEach(p => {
         const age = calculateAge(p.plantedDate);
-        const latestNote = p.notes && p.notes.length > 0 
-          ? p.notes[0].content.replace(/"/g, '""') 
+        const historyText = p.notes && p.notes.length > 0 
+          ? p.notes.map(n => `[${n.date}] ${n.content}`).join(' | ').replace(/"/g, '""') 
           : "No logs recorded";
         
         rows.push([
@@ -296,7 +423,7 @@ export default function App() {
           p.plantedDate,
           p.stage,
           age.toString(),
-          `"${latestNote}"`
+          `"${historyText}"`
         ]);
       });
     });
@@ -306,7 +433,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `hydrogrow_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `hydrogrow_complete_history_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -537,7 +664,7 @@ export default function App() {
           )}
         </header>
 
-        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} />}
 
         {view === 'gardens' && !selectedGarden && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
