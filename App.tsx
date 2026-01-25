@@ -476,8 +476,7 @@ export default function App() {
               <ChevronLeft size={20} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Back to Gardens
             </button>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-8">
+            <div className="max-w-4xl mx-auto space-y-8">
                 <Card>
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xl font-black text-slate-800">Specimen Directory</h3>
@@ -506,23 +505,6 @@ export default function App() {
                     )}
                   </div>
                 </Card>
-              </div>
-
-              <div className="space-y-6">
-                <Card className="bg-slate-900 text-white">
-                  <h4 className="font-black mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Calendar size={18}/> Garden Profile</h4>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-white/5 rounded-2xl">
-                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Established On</p>
-                      <p className="font-bold text-emerald-400">{selectedGarden.startedDate}</p>
-                    </div>
-                    <div className="p-4 bg-white/5 rounded-2xl">
-                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Type</p>
-                      <p className="font-bold">{selectedGarden.type}</p>
-                    </div>
-                  </div>
-                </Card>
-              </div>
             </div>
           </div>
         )}
