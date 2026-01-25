@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { GrowthProjection } from "../types.ts";
+import { GrowthProjection, Garden } from "../types.ts";
 
 /**
  * Predicts the growth timeline for a specific plant variety.
@@ -37,6 +37,32 @@ export const predictGrowthTimeline = async (
     return JSON.parse(text) as GrowthProjection;
   } catch (error) {
     console.error("AI Prediction failed:", error);
+    return null;
+  }
+};
+
+/**
+ * Provides a holistic system analysis of all gardens.
+ */
+export const getSystemAnalysis = async (gardens: Garden[]): Promise<string | null> => {
+  if (!gardens.length) return null;
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const gardenContext = gardens.map(g => ({
+      name: g.name,
+      type: g.type,
+      plantCount: g.plants.length,
+      stages: g.plants.map(p => p.stage)
+    }));
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Provide a 1-sentence expert grower analysis and "System Health Score" (0-100) based on these gardens: ${JSON.stringify(gardenContext)}. Be encouraging but scientific.`
+    });
+
+    return response.text || null;
+  } catch (error) {
+    console.error("System analysis failed:", error);
     return null;
   }
 };

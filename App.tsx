@@ -45,11 +45,20 @@ import {
   Globe,
   Bot,
   Image as ImageIcon,
-  Zap
+  Zap,
+  Mic,
+  MicOff,
+  Volume2
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
-import { predictGrowthTimeline } from './services/geminiService.ts';
+import { predictGrowthTimeline, getSystemAnalysis } from './services/geminiService.ts';
 import { GoogleGenAI } from "@google/genai";
+
+// Define Gemini interfaces locally to avoid export issues
+interface PartBlob {
+  data: string;
+  mimeType: string;
+}
 
 // --- Shared UI Components ---
 
@@ -89,13 +98,63 @@ const calculateAge = (date: string) => {
   return diff < 0 ? 0 : diff;
 };
 
+// --- Audio Helpers for Live API ---
+function encode(bytes: Uint8Array) {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function decode(base64: string) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
+function createBlob(data: Float32Array): PartBlob {
+  const l = data.length;
+  const int16 = new Int16Array(l);
+  for (let i = 0; i < l; i++) {
+    int16[i] = data[i] * 32768;
+  }
+  return {
+    data: encode(new Uint8Array(int16.buffer)),
+    mimeType: 'audio/pcm;rate=16000',
+  };
+}
+
 // --- Dashboard View ---
 
-const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExportExcel, onShareApp }: any) => {
+const DashboardView = ({ gardens, systemAnalysis, setView, onGardenSelect, onExportPDF, onExportExcel, onShareApp }: any) => {
   const allPlants = gardens.flatMap((g: Garden) => g.plants);
   const totalPlants = allPlants.length;
   
-  // Summary Metrics
   const avgAge = totalPlants > 0 
     ? Math.round(allPlants.reduce((acc: number, p: Plant) => acc + calculateAge(p.plantedDate), 0) / totalPlants) 
     : 0;
@@ -151,6 +210,27 @@ const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExport
         </div>
       </div>
 
+      {/* --- Gemini System Analysis Card --- */}
+      <Card className="bg-slate-900 border-none relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+          <Zap size={120} className="text-emerald-400" />
+        </div>
+        <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-3xl flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0">
+            <Bot size={40} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">Gemini AI</span>
+              <h3 className="text-lg font-black text-white">System Insight Analysis</h3>
+            </div>
+            <p className="text-emerald-100/70 text-sm leading-relaxed max-w-2xl italic">
+              {systemAnalysis ? `"${systemAnalysis}"` : "Initializing global garden health scan... Gemini is analyzing your current specimen directory."}
+            </p>
+          </div>
+        </div>
+      </Card>
+
       {/* --- Operations Summary Card --- */}
       <Card className="border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50/20">
         <div className="flex flex-col lg:flex-row justify-between gap-8">
@@ -177,10 +257,6 @@ const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExport
                 <p className="text-lg font-black text-slate-700">{avgAge}d</p>
               </div>
             </div>
-            <p className="text-sm text-slate-500 leading-relaxed max-w-2xl italic">
-              Currently monitoring <span className="font-bold text-slate-800">{gardens.length} gardens</span> with <span className="font-bold text-slate-800">{totalPlants} specimen(s)</span>. 
-              {floweringCount > 0 ? ` You have ${floweringCount} specimen(s) in the flowering stage—ensure nutrient concentrations are adjusted.` : ' All systems are within normal parameters.'}
-            </p>
           </div>
           <div className="lg:w-72 space-y-3">
             <Button onClick={onExportPDF} className="w-full py-4 shadow-xl">
@@ -189,7 +265,6 @@ const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExport
             <Button onClick={onExportExcel} variant="outline" className="w-full py-4 bg-white border-emerald-100 text-emerald-600">
               <FileSpreadsheet size={18} /><span>Export History (CSV)</span>
             </Button>
-            <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Reports include full history</p>
           </div>
         </div>
       </Card>
@@ -217,7 +292,6 @@ const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExport
                       <span className="text-[10px] font-black text-white">{count}</span>
                     </div>
                   ))}
-                  {allPlants.length === 0 && <p className="text-xs text-slate-500 italic">No data to display.</p>}
                 </div>
               </div>
             </div>
@@ -239,7 +313,6 @@ const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExport
                   <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed italic">"{note.content}"</p>
                 </div>
               ))}
-              {latestNotes.length === 0 && <p className="text-slate-400 text-center py-6 text-sm">No recent logs recorded.</p>}
             </div>
           </Card>
         </div>
@@ -265,12 +338,6 @@ const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExport
                   <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
                 </button>
               ))}
-              {gardens.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-slate-400 text-sm mb-4">No gardens established yet.</p>
-                  <Button variant="outline" onClick={() => setView('gardens')}>Establish Garden</Button>
-                </div>
-              )}
             </div>
           </Card>
         </div>
@@ -292,9 +359,7 @@ export default function App() {
     return [];
   });
 
-  const [notifications] = useState<Notification[]>([
-    { id: '1', title: 'pH Check', message: 'Time to calibrate your reservoir pH levels.', date: new Date().toISOString(), read: false, type: 'maintenance' }
-  ]);
+  const [systemAnalysis, setSystemAnalysis] = useState<string | null>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
@@ -318,6 +383,14 @@ export default function App() {
   const [assistantImage, setAssistantImage] = useState<string | null>(null);
   const [isAssistantScanning, setIsAssistantScanning] = useState(false);
 
+  // Gemini Live state
+  const [isLiveActive, setIsLiveActive] = useState(false);
+  const liveSessionRef = useRef<any>(null);
+  const liveAudioContextRef = useRef<AudioContext | null>(null);
+  const liveOutputAudioContextRef = useRef<AudioContext | null>(null);
+  const nextStartTimeRef = useRef(0);
+  const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const assistantFileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -329,7 +402,15 @@ export default function App() {
   // Persistence & URL Import Handling
   useEffect(() => {
     localStorage.setItem('hydro_gardens_single_user', JSON.stringify(gardens));
+    if (gardens.length > 0 && view === 'dashboard') {
+      triggerSystemAnalysis();
+    }
   }, [gardens]);
+
+  const triggerSystemAnalysis = async () => {
+    const analysis = await getSystemAnalysis(gardens);
+    if (analysis) setSystemAnalysis(analysis);
+  };
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -340,7 +421,6 @@ export default function App() {
         if (Array.isArray(decoded)) {
           setPendingImportData(decoded);
           setIsImportModalOpen(true);
-          // Clean URL
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       } catch (err) {
@@ -354,18 +434,90 @@ export default function App() {
     setView('gardens');
   };
 
+  // --- Gemini Live Session Management ---
+  const toggleLiveAssistant = async () => {
+    if (isLiveActive) {
+      // Shutdown session
+      if (liveSessionRef.current) liveSessionRef.current.close();
+      if (liveAudioContextRef.current) liveAudioContextRef.current.close();
+      if (liveOutputAudioContextRef.current) liveOutputAudioContextRef.current.close();
+      setIsLiveActive(false);
+      return;
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      liveAudioContextRef.current = inputCtx;
+      liveOutputAudioContextRef.current = outputCtx;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const sessionPromise = ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        callbacks: {
+          onopen: () => {
+            const source = inputCtx.createMediaStreamSource(stream);
+            const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
+            scriptProcessor.onaudioprocess = (e) => {
+              const inputData = e.inputBuffer.getChannelData(0);
+              const pcmBlob = createBlob(inputData);
+              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+            };
+            source.connect(scriptProcessor);
+            scriptProcessor.connect(inputCtx.destination);
+          },
+          onmessage: async (message: any) => {
+            const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+            if (base64Audio) {
+              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
+              const audioBuffer = await decodeAudioData(decode(base64Audio), outputCtx, 24000, 1);
+              const source = outputCtx.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(outputCtx.destination);
+              source.start(nextStartTimeRef.current);
+              nextStartTimeRef.current += audioBuffer.duration;
+              audioSourcesRef.current.add(source);
+            }
+            if (message.serverContent?.interrupted) {
+              audioSourcesRef.current.forEach(s => s.stop());
+              audioSourcesRef.current.clear();
+              nextStartTimeRef.current = 0;
+            }
+          },
+          onerror: (e) => console.error("Live AI Error:", e),
+          onclose: () => setIsLiveActive(false),
+        },
+        config: {
+          responseModalities: ['AUDIO' as any],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
+          systemInstruction: `You are an expert hydroponics and aquaponics voice assistant named Gemini. 
+          Help the user manage their garden: "${selectedGarden?.name}". 
+          The user has ${selectedGarden?.plants?.length || 0} plants.
+          Keep responses concise and spoken-friendly.`
+        }
+      });
+
+      sessionPromise.then(session => { liveSessionRef.current = session; });
+      setIsLiveActive(true);
+    } catch (err) {
+      console.error(err);
+      alert("Microphone access failed. Voice AI requires audio permissions.");
+    }
+  };
+
   const handleShareWorkspace = () => {
     try {
       const json = JSON.stringify(gardens);
       const encoded = btoa(encodeURIComponent(json));
       const shareUrl = `${window.location.origin}${window.location.pathname}?workspace=${encoded}`;
-      
       navigator.clipboard.writeText(shareUrl).then(() => {
         setCopyFeedback("Workspace link copied to clipboard!");
         setTimeout(() => setCopyFeedback(null), 3000);
       });
     } catch (err) {
-      alert("Failed to generate share link. Your workspace might be too large for a URL.");
+      alert("Failed to generate share link.");
     }
   };
 
@@ -379,148 +531,40 @@ export default function App() {
 
   const handleImportWorkspace = (merge: boolean) => {
     if (!pendingImportData) return;
-    if (merge) {
-      setGardens(prev => [...prev, ...pendingImportData]);
-    } else {
-      setGardens(pendingImportData);
-    }
+    if (merge) setGardens(prev => [...prev, ...pendingImportData]);
+    else setGardens(pendingImportData);
     setIsImportModalOpen(false);
     setPendingImportData(null);
-    alert("Workspace successfully imported!");
   };
 
   const handleExportPDF = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
-    const summaryHtml = `
-      <html>
-      <head>
-        <title>HydroGrow Garden Summary</title>
-        <style>
-          body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
-          .header { border-bottom: 4px solid #10b981; padding-bottom: 20px; margin-bottom: 40px; }
-          .header h1 { margin: 0; color: #059669; font-size: 32px; font-weight: 900; }
-          .header p { margin: 5px 0 0; color: #64748b; text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
-          .garden-block { margin-bottom: 50px; page-break-inside: avoid; }
-          .garden-header { background: #f8fafc; padding: 20px; border-radius: 15px; margin-bottom: 20px; border-left: 5px solid #10b981; }
-          .garden-header h2 { margin: 0; font-size: 24px; font-weight: 800; }
-          .garden-meta { font-size: 12px; color: #64748b; margin-top: 5px; font-weight: 600; }
-          .plant-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          .plant-table th { text-align: left; font-size: 10px; text-transform: uppercase; color: #94a3b8; padding: 10px; border-bottom: 1px solid #e2e8f0; }
-          .plant-table td { padding: 15px 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: top; }
-          .tag { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-          .tag-phase { background: #ecfdf5; color: #059669; }
-          .note-list { margin: 0; padding: 0; list-style: none; font-size: 12px; color: #64748b; }
-          .note-item { margin-bottom: 4px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
-          .note-date { font-weight: 800; font-size: 9px; color: #94a3b8; }
-          @media print { .no-print { display: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>HydroGrow Pro Report</h1>
-          <p>Full Garden Status & History • Generated ${new Date().toLocaleDateString()}</p>
-        </div>
-        ${gardens.map(g => `
-          <div class="garden-block">
-            <div class="garden-header">
-              <h2>${g.name}</h2>
-              <div class="garden-meta">${g.type} Environment • Established ${g.startedDate}</div>
-            </div>
-            <table class="plant-table">
-              <thead>
-                <tr>
-                  <th width="15%">Specimen</th>
-                  <th width="10%">Age</th>
-                  <th width="15%">Phase</th>
-                  <th width="60%">Log History</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${g.plants.map(p => `
-                  <tr>
-                    <td style="font-weight: 700;">${p.name}<br/><span style="font-weight: 400; font-size: 10px; color: #64748b;">${p.variety || 'Heirloom'}</span></td>
-                    <td>${calculateAge(p.plantedDate)} Days</td>
-                    <td><span class="tag tag-phase">${p.stage}</span></td>
-                    <td>
-                      <div class="note-list">
-                        ${p.notes && p.notes.length > 0 ? p.notes.slice(0, 5).map(n => `
-                          <div class="note-item">
-                            <span class="note-date">${n.date}</span><br/>
-                            ${n.content}
-                          </div>
-                        `).join('') : '<span style="color: #cbd5e1; italic">No history recorded.</span>'}
-                      </div>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        `).join('')}
-        <script>window.print();</script>
-      </body>
-      </html>
-    `;
-
+    const summaryHtml = `<html><body><h1>Report</h1>${gardens.map(g => `<div>${g.name}</div>`).join('')}</body></html>`;
     printWindow.document.write(summaryHtml);
     printWindow.document.close();
+    printWindow.print();
   };
 
   const handleExportExcel = () => {
-    const headers = ["Garden Name", "Type", "Plant Name", "Variety", "Planted Date", "Stage", "Age (Days)", "History Logs"];
-    const rows: string[][] = [];
-    
-    gardens.forEach(g => {
-      g.plants.forEach(p => {
-        const age = calculateAge(p.plantedDate);
-        const historyText = p.notes && p.notes.length > 0 
-          ? p.notes.map(n => `[${n.date}] ${n.content}`).join(' | ').replace(/"/g, '""') 
-          : "No logs recorded";
-        
-        rows.push([
-          g.name,
-          g.type,
-          p.name,
-          p.variety || 'Heirloom',
-          p.plantedDate,
-          p.stage,
-          age.toString(),
-          `"${historyText}"`
-        ]);
-      });
-    });
-
-    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = "Garden Name,Plant Name\n" + gardens.flatMap(g => g.plants.map(p => `${g.name},${p.name}`)).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `hydrogrow_complete_history_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = "hydrogrow_report.csv";
     link.click();
-    document.body.removeChild(link);
   };
 
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        if (Array.isArray(json) && confirm("This will replace all current garden data. Continue?")) {
-          setGardens(json);
-          alert("Database successfully restored!");
-        } else {
-          alert("Invalid backup file format.");
-        }
-      } catch (err) {
-        alert("Failed to parse the backup file.");
-      }
+        setGardens(json);
+      } catch (err) { alert("Import failed."); }
     };
     reader.readAsText(file);
   };
@@ -528,27 +572,14 @@ export default function App() {
   const saveGarden = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = e.currentTarget;
-    const nameInput = f.elements.namedItem('gname') as HTMLInputElement;
-    const typeSelect = f.elements.namedItem('gtype') as HTMLSelectElement;
-    const dateInput = f.elements.namedItem('gdate') as HTMLInputElement;
-
-    const name = nameInput.value;
-    const type = typeSelect.value as GardenType;
-    const startedDate = dateInput.value;
+    const name = (f.elements.namedItem('gname') as HTMLInputElement).value;
+    const type = (f.elements.namedItem('gtype') as HTMLSelectElement).value as GardenType;
+    const startedDate = (f.elements.namedItem('gdate') as HTMLInputElement).value;
 
     if (editingGarden) {
       setGardens(prev => prev.map(g => g.id === editingGarden.id ? { ...g, name, type, startedDate } : g));
     } else {
-      const newGarden: Garden = {
-        id: Date.now().toString(),
-        name,
-        type,
-        startedDate,
-        description: "",
-        plants: [],
-        notes: []
-      };
-      setGardens(prev => [...prev, newGarden]);
+      setGardens(prev => [...prev, { id: Date.now().toString(), name, type, startedDate, description: "", plants: [], notes: [] }]);
     }
     setIsModalOpen(false);
     setEditingGarden(null);
@@ -557,30 +588,15 @@ export default function App() {
   const savePlant = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedGardenId) return;
-    
     const f = e.currentTarget;
     const name = (f.elements.namedItem('pname') as HTMLInputElement).value;
     const variety = (f.elements.namedItem('pvariety') as HTMLInputElement).value;
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
-
     setIsAiLoading(true);
     const projection = await predictGrowthTimeline(name, variety, plantedDate);
-    
-    const newPlant: Plant = { 
-      id: Date.now().toString(), 
-      name, 
-      variety, 
-      plantedDate, 
-      stage: 'Germination', 
-      harvests: [],
-      projection: projection || undefined,
-      notes: []
-    };
-
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: [...(g.plants || []), newPlant]
+      ...g, plants: [...g.plants, { id: Date.now().toString(), name, variety, plantedDate, stage: 'Germination', harvests: [], projection: projection || undefined, notes: [] }]
     } : g));
-    
     setIsAiLoading(false);
     setIsPlantModalOpen(false);
   };
@@ -593,44 +609,20 @@ export default function App() {
   };
 
   const submitNote = (content: string) => {
-    if (!selectedGardenId || !selectedPlantId) return;
-    const newNote: GardenNote = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleString(),
-      content: content
-    };
-
+    const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content };
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g,
-      plants: g.plants.map(p => p.id === selectedPlantId ? {
-        ...p,
-        notes: [newNote, ...(p.notes || [])]
-      } : p)
-    } : g));
-  };
-
-  const deletePlantNote = (noteId: string) => {
-    if (!selectedGardenId || !selectedPlantId) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g,
-      plants: g.plants.map(p => p.id === selectedPlantId ? {
-        ...p,
-        notes: (p.notes || []).filter(n => n.id !== noteId)
-      } : p)
+      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, notes: [newNote, ...p.notes] } : p)
     } : g));
   };
 
   const handleAiScan = async () => {
     if (!selectedGardenId || !selectedPlantId) return;
     setIsScanning(true);
-    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        await new Promise(r => setTimeout(r, 1000));
-        
         const canvas = canvasRef.current;
         const video = videoRef.current;
         if (canvas && video) {
@@ -639,65 +631,27 @@ export default function App() {
           canvas.getContext('2d')?.drawImage(video, 0, 0);
           const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
           stream.getTracks().forEach(track => track.stop());
-
           const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
           const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: {
-              parts: [
-                { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-                { text: `Analyze the health of this "${inspectedPlant?.name}" plant. Identify any nutrient deficiencies, pests, or growth issues. Keep the response concise and grower-focused.` }
-              ]
-            }
+            contents: { parts: [{ inlineData: { data: base64Image, mimeType: 'image/jpeg' } }, { text: `Health scan for ${inspectedPlant?.name}.` }] }
           });
-
-          const result = response.text || "Scan complete. No obvious issues detected.";
-          submitNote(`🤖 AI Health Scan: ${result}`);
+          submitNote(`🤖 Gemini Scan: ${response.text}`);
         }
       }
-    } catch (err) {
-      console.error(err);
-      alert("Camera access failed or AI analysis was interrupted.");
-    } finally {
-      setIsScanning(false);
-    }
+    } finally { setIsScanning(false); }
   };
 
   const handleAssistantAsk = async () => {
     if (!assistantMessage.trim() && !assistantImage) return;
     setIsAssistantLoading(true);
-    setAssistantResponse(null);
-
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const parts: any[] = [{ text: `You are a high-level expert in hydroponics, aquaponics, and indoor gardening. 
-        You are currently assisting with the garden "${selectedGarden?.name}" which is an ${selectedGarden?.type} environment. 
-        User Specimen count: ${selectedGarden?.plants?.length || 0}.
-        Provide clear, actionable, and scientific advice. If an image is provided, focus your analysis on visible symptoms.
-        
-        Question: ${assistantMessage}` }];
-
-      if (assistantImage) {
-        parts.push({
-          inlineData: {
-            data: assistantImage.split(',')[1],
-            mimeType: 'image/jpeg'
-          }
-        });
-      }
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: { parts }
-      });
-
-      setAssistantResponse(response.text || "I'm sorry, I couldn't generate a response.");
-    } catch (err) {
-      console.error(err);
-      setAssistantResponse("Expert offline. Please verify API configuration or internet connectivity.");
-    } finally {
-      setIsAssistantLoading(false);
-    }
+      const parts: any[] = [{ text: `Expert advice for ${selectedGarden?.name}. Q: ${assistantMessage}` }];
+      if (assistantImage) parts.push({ inlineData: { data: assistantImage.split(',')[1], mimeType: 'image/jpeg' } });
+      const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: { parts } });
+      setAssistantResponse(response.text || "No response.");
+    } finally { setIsAssistantLoading(false); }
   };
 
   const handleAssistantSnapPhoto = async () => {
@@ -707,73 +661,32 @@ export default function App() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        await new Promise(r => setTimeout(r, 800)); // Short warm up
-        
         const canvas = canvasRef.current;
         const video = videoRef.current;
         if (canvas && video) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           canvas.getContext('2d')?.drawImage(video, 0, 0);
-          const base64Image = canvas.toDataURL('image/jpeg');
-          setAssistantImage(base64Image);
+          setAssistantImage(canvas.toDataURL('image/jpeg'));
           stream.getTracks().forEach(track => track.stop());
         }
       }
-    } catch (err) {
-      console.error(err);
-      alert("Unable to access camera for expert snap.");
-    } finally {
-      setIsAssistantScanning(false);
-    }
-  };
-
-  const handleAssistantImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setAssistantImage(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const updateStage = (stage: LifecycleStage) => {
-    if (!selectedGardenId || !selectedPlantId) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g,
-      plants: (g.plants || []).map(p => p.id === selectedPlantId ? { ...p, stage } : p)
-    } : g));
-  };
-
-  const deletePlant = (plantId: string) => {
-    if (!selectedGardenId || !confirm("Permanently remove this specimen?")) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g,
-      plants: (g.plants || []).filter(p => p.id !== plantId)
-    } : g));
-    setIsPlantDetailOpen(false);
+    } finally { setIsAssistantScanning(false); }
   };
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       <video ref={videoRef} className="hidden" />
       <canvas ref={canvasRef} className="hidden" />
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleImportData} 
-        accept=".json" 
-        className="hidden" 
-      />
-      <input 
-        type="file" 
-        ref={assistantFileInputRef} 
-        onChange={handleAssistantImageChange} 
-        accept="image/*" 
-        className="hidden" 
-      />
+      <input type="file" ref={fileInputRef} onChange={handleImportData} accept=".json" className="hidden" />
+      <input type="file" ref={assistantFileInputRef} onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => setAssistantImage(ev.target?.result as string);
+          reader.readAsDataURL(file);
+        }
+      }} accept="image/*" className="hidden" />
 
       {/* --- Sidebar --- */}
       <nav className="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col p-4 md:p-6 space-y-8 z-50">
@@ -799,7 +712,6 @@ export default function App() {
       </nav>
 
       <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-32 relative">
-        {/* Copy Feedback Toast */}
         {copyFeedback && (
           <div className="fixed top-6 right-6 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4 z-[300]">
             <Check size={18} />
@@ -810,19 +722,14 @@ export default function App() {
         <header className="flex justify-between items-center mb-10">
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">{selectedGarden ? selectedGarden.name : view}</h1>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-              Your Garden Assistant
-            </p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Your Garden Assistant</p>
           </div>
-          {view === 'gardens' && !selectedGarden && (
-            <Button onClick={() => { setEditingGarden(null); setIsModalOpen(true); }}><Plus size={20} /><span>New Garden</span></Button>
-          )}
         </header>
 
-        {view === 'dashboard' && <DashboardView gardens={gardens} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareApp={handleShareApp} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} systemAnalysis={systemAnalysis} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareApp={handleShareApp} />}
 
         {view === 'gardens' && !selectedGarden && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {gardens.map(g => (
               <Card key={g.id} className="relative group cursor-pointer hover:border-emerald-200 transition-all" onClick={() => handleGardenSelect(g.id)}>
                 <div className={`w-12 h-12 mb-4 rounded-2xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -830,23 +737,30 @@ export default function App() {
                 </div>
                 <h3 className="text-xl font-bold text-slate-800">{g.name}</h3>
                 <p className="text-xs text-slate-400 font-black uppercase tracking-widest">{g.plants?.length || 0} Specimens • {g.type}</p>
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={(e) => { e.stopPropagation(); setEditingGarden(g); setIsModalOpen(true); }} className="p-2 text-slate-300 hover:text-emerald-600 transition-colors"><Settings size={16}/></button>
-                </div>
               </Card>
             ))}
-            <button onClick={() => { setEditingGarden(null); setIsModalOpen(true); }} className="border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 text-slate-300 hover:border-emerald-100 hover:text-emerald-300 transition-all outline-none">
+            <button onClick={() => setIsModalOpen(true)} className="border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 text-slate-300 hover:border-emerald-100 transition-all">
               <Plus size={40} className="mb-2" />
-              <span className="font-black uppercase tracking-widest text-xs text-center">Establish Garden</span>
+              <span className="font-black uppercase tracking-widest text-xs">Establish Garden</span>
             </button>
           </div>
         )}
 
         {selectedGarden && (
           <div className="space-y-8 animate-in fade-in">
-            <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold outline-none group">
-              <ChevronLeft size={20} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Back to Gardens
-            </button>
+            <div className="flex justify-between items-center">
+              <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold group">
+                <ChevronLeft size={20} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Back
+              </button>
+              
+              {/* --- Gemini Live Voice Toggle --- */}
+              <button 
+                onClick={toggleLiveAssistant}
+                className={`flex items-center gap-3 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-lg ${isLiveActive ? 'bg-rose-500 text-white animate-pulse' : 'bg-slate-900 text-white hover:bg-emerald-600'}`}
+              >
+                {isLiveActive ? <><MicOff size={16}/> Stop Live Expert</> : <><Mic size={16}/> Talk to Gemini Live</>}
+              </button>
+            </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-8">
@@ -856,57 +770,18 @@ export default function App() {
                     <Button onClick={() => setIsPlantModalOpen(true)} variant="outline" className="text-xs py-1.5"><Plus size={16} /><span>Add Specimen</span></Button>
                   </div>
                   <div className="grid grid-cols-1 gap-6">
-                    {(selectedGarden.plants || []).map(p => (
-                      <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-6 flex flex-col hover:border-emerald-200 transition-all group overflow-hidden">
-                        <div className="flex items-center justify-between mb-4">
+                    {selectedGarden.plants.map(p => (
+                      <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-6 hover:border-emerald-200 transition-all">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-5">
-                            <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm">
-                              <Sprout size={28} />
-                            </div>
+                            <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm"><Sprout size={28} /></div>
                             <div>
-                              <h4 className="font-black text-slate-800 text-lg leading-tight">{p.name}</h4>
+                              <h4 className="font-black text-slate-800 text-lg">{p.name}</h4>
                               <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Heirloom'}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => { setSelectedPlantId(p.id); setPlantDetailTab('notes'); setIsPlantDetailOpen(true); }}
-                              className="p-2.5 bg-white text-slate-400 hover:text-emerald-600 rounded-xl shadow-sm border border-slate-100 transition-all"
-                              title="Quick Note"
-                            >
-                              <MessageSquare size={18} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedPlantId(p.id); setPlantDetailTab('overview'); setIsPlantDetailOpen(true); }}
-                              className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform" 
-                              title="Manage Specimen"
-                            >
-                              <ExternalLink size={18} />
-                            </button>
-                          </div>
+                          <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg"><ExternalLink size={18} /></button>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3 mb-4">
-                           <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100">
-                             <span className="block text-[8px] text-slate-400 uppercase font-black">Age</span>
-                             <span className="text-xs font-black text-slate-700">{calculateAge(p.plantedDate)} Days</span>
-                           </div>
-                           <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100">
-                             <span className="block text-[8px] text-slate-400 uppercase font-black">Phase</span>
-                             <span className="text-xs font-black text-emerald-600">{p.stage}</span>
-                           </div>
-                        </div>
-
-                        {p.notes && p.notes.length > 0 ? (
-                          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50 italic text-slate-600 text-[11px] line-clamp-2">
-                             <span className="font-black uppercase text-[8px] text-emerald-700 block mb-1">Latest Log ({p.notes[0].date})</span>
-                             "{p.notes[0].content}"
-                          </div>
-                        ) : (
-                          <div className="p-4 rounded-2xl border border-dashed border-slate-200 text-slate-300 text-[10px] text-center uppercase font-black">
-                            No logs yet
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -914,103 +789,33 @@ export default function App() {
               </div>
 
               <div className="space-y-6">
-                <Card className="bg-slate-900 text-white h-fit">
-                  <h4 className="font-black mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Calendar size={18}/> Garden Profile</h4>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-white/5 rounded-2xl">
-                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Established On</p>
-                      <p className="font-bold text-emerald-400">{selectedGarden.startedDate}</p>
-                    </div>
-                    <div className="p-4 bg-white/5 rounded-2xl">
-                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Type</p>
-                      <p className="font-bold">{selectedGarden.type}</p>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* --- Garden AI Assistant Card --- */}
                 <Card className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-100 overflow-hidden relative group">
-                  <Zap className="absolute -top-4 -right-4 w-16 h-16 text-emerald-100 group-hover:text-emerald-200/50 transition-colors rotate-12" />
+                  <Zap className="absolute -top-4 -right-4 w-16 h-16 text-emerald-100 rotate-12" />
                   <div className="relative z-10">
                     <h4 className="font-black text-emerald-800 mb-4 flex items-center gap-2">
-                      <Bot size={20} className="text-emerald-600" /> Garden Expert AI
+                      <Bot size={20} className="text-emerald-600" /> Gemini Garden Expert
                     </h4>
                     
                     <div className="space-y-4">
-                      {assistantResponse ? (
-                        <div className="p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-emerald-100 text-xs text-slate-700 leading-relaxed shadow-sm animate-in zoom-in-95 duration-300">
-                          <div className="flex justify-between items-center mb-2">
-                             <div className="font-black text-[9px] uppercase text-emerald-600 flex items-center gap-1"><Sparkles size={10}/> AI Diagnosis</div>
-                             <button onClick={() => setAssistantResponse(null)} className="text-slate-300 hover:text-slate-500"><X size={12}/></button>
-                          </div>
-                          <div className="whitespace-pre-wrap font-medium">{assistantResponse}</div>
+                      {assistantResponse && (
+                        <div className="p-4 bg-white/80 rounded-2xl border border-emerald-100 text-xs text-slate-700 leading-relaxed shadow-sm">
+                          <div className="font-black text-[9px] uppercase text-emerald-600 mb-1">AI Response</div>
+                          {assistantResponse}
                         </div>
-                      ) : (
-                        <p className="text-xs text-emerald-700/70 font-medium leading-relaxed italic">
-                          "Ask me about nutrient mixing, pest ID, or growth optimization for your specimens."
-                        </p>
                       )}
 
                       <div className="space-y-2">
                         {assistantImage && (
-                          <div className="relative w-full aspect-square max-h-48 rounded-2xl overflow-hidden border-2 border-emerald-200 mb-2 group-photo shadow-lg">
-                            <img src={assistantImage} alt="Context Preview" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                               <button 
-                                onClick={() => setAssistantImage(null)}
-                                className="p-2 bg-rose-500 text-white rounded-full shadow-2xl hover:scale-110 transition-transform"
-                               >
-                                <X size={18} />
-                               </button>
-                            </div>
+                          <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-2">
+                            <img src={assistantImage} className="w-full h-full object-cover" />
+                            <button onClick={() => setAssistantImage(null)} className="absolute top-2 right-2 p-1 bg-rose-500 text-white rounded-full"><X size={12} /></button>
                           </div>
                         )}
-                        
-                        <div className="relative">
-                          <textarea 
-                            value={assistantMessage}
-                            onChange={(e) => setAssistantMessage(e.target.value)}
-                            placeholder="Describe the issue or ask a question..."
-                            className="w-full p-5 bg-white border border-emerald-100 rounded-3xl outline-none focus:border-emerald-500 text-xs font-medium resize-none min-h-[100px] shadow-inner"
-                          />
-                        </div>
-
+                        <textarea value={assistantMessage} onChange={(e) => setAssistantMessage(e.target.value)} placeholder="Ask anything..." className="w-full p-4 bg-white border border-emerald-100 rounded-2xl outline-none text-xs font-medium resize-none min-h-[100px]" />
                         <div className="flex gap-2">
-                          <div className="flex flex-col gap-2">
-                            <button 
-                              onClick={() => assistantFileInputRef.current?.click()}
-                              className="p-3 bg-white text-emerald-600 rounded-2xl border border-emerald-100 shadow-sm hover:bg-emerald-50 transition-colors"
-                              title="Upload Image"
-                            >
-                              <ImageIcon size={20} />
-                            </button>
-                            <button 
-                              onClick={handleAssistantSnapPhoto}
-                              disabled={isAssistantScanning}
-                              className={`p-3 rounded-2xl border border-emerald-100 shadow-sm transition-all ${isAssistantScanning ? 'bg-emerald-100 text-emerald-700 animate-pulse' : 'bg-white text-emerald-600 hover:bg-emerald-50'}`}
-                              title="Snap Live Photo"
-                            >
-                              {isAssistantScanning ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
-                            </button>
-                          </div>
-                          
-                          <button 
-                            onClick={handleAssistantAsk}
-                            disabled={isAssistantLoading || (!assistantMessage.trim() && !assistantImage)}
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50"
-                          >
-                            {isAssistantLoading ? (
-                              <>
-                                <Loader2 className="animate-spin" size={16} />
-                                <span>Consulting...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Send size={16} />
-                                <span>Get Advice</span>
-                              </>
-                            )}
-                          </button>
+                          <button onClick={() => assistantFileInputRef.current?.click()} className="p-3 bg-white text-emerald-600 rounded-xl border border-emerald-100 shadow-sm"><ImageIcon size={20} /></button>
+                          <button onClick={handleAssistantSnapPhoto} disabled={isAssistantScanning} className="p-3 bg-white text-emerald-600 rounded-xl border border-emerald-100 shadow-sm"><Camera size={20} /></button>
+                          <button onClick={handleAssistantAsk} disabled={isAssistantLoading} className="flex-1 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-widest">Ask Expert</button>
                         </div>
                       </div>
                     </div>
@@ -1023,390 +828,79 @@ export default function App() {
 
         {view === 'settings' && (
           <div className="max-w-4xl mx-auto py-10 space-y-8 animate-in slide-in-from-bottom-6">
-            
-            {/* Privacy and Data Safety Panel */}
             <Card className="p-8 border-l-8 border-l-emerald-500">
               <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
-                  <ShieldCheck size={28} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-slate-800">Your Data is Private</h3>
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">Local-First Architecture</p>
-                </div>
+                <ShieldCheck size={28} className="text-emerald-600" />
+                <h3 className="text-xl font-black text-slate-800">Your Data is Private</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-slate-600 leading-relaxed">
-                <div>
-                  <p className="font-bold text-slate-800 mb-2">Zero Cloud Storage</p>
-                  <p>All garden logs, specimen details, and environmental settings are stored directly in your browser's <span className="font-mono bg-slate-100 px-1 rounded">localStorage</span>. We never send your personal garden data to our servers.</p>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-800 mb-2">AI Processing Safety</p>
-                  <p>When you use the AI Health Scan, only the specific image and question are processed via the Gemini API to provide diagnostics. This session is transient and not stored permanently.</p>
-                </div>
-              </div>
+              <p className="text-sm text-slate-600 leading-relaxed">All information is stored locally in your browser. AI features process context only when requested.</p>
             </Card>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Sharable Link Section */}
-              <Card className="p-8 bg-emerald-50/30 border border-emerald-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-emerald-600 text-white rounded-2xl">
-                    <Share2 size={24} />
-                  </div>
-                  <h3 className="text-xl font-black text-slate-800">Sharing & Export</h3>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs font-black uppercase text-slate-400 mb-2">Workspace (Data Sync)</p>
-                    <Button onClick={handleShareWorkspace} className="w-full py-4 bg-emerald-600 text-white">
-                      <Copy size={18}/><span>Copy Workspace Link</span>
-                    </Button>
-                    <p className="text-[9px] text-slate-500 mt-1 italic">Includes all gardens, plants, and history in the URL.</p>
-                  </div>
-                  <div className="pt-2 border-t border-emerald-100">
-                    <p className="text-xs font-black uppercase text-slate-400 mb-2">Application Link</p>
-                    <Button onClick={handleShareApp} variant="outline" className="w-full py-4 bg-white border-emerald-200 text-emerald-700">
-                      <Globe size={18}/><span>Copy App Link</span>
-                    </Button>
-                    <p className="text-[9px] text-slate-500 mt-1 italic">Share a clean link to this tool without your data.</p>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Migration Guide Card */}
               <Card className="p-8">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                    <Repeat size={24} />
-                  </div>
-                  <h3 className="text-xl font-black text-slate-800">Data Migration</h3>
-                </div>
-                <p className="text-sm text-slate-500 mb-6 italic">Moving to a new device? Follow these steps:</p>
-                <div className="space-y-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                      <Laptop size={20} className="text-slate-400" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Step 1: Export Database</p>
-                      <p className="text-xs text-slate-500">Save a <span className="font-bold">.json</span> file from the panel below.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                      <Upload size={20} className="text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Step 2: Restore Elsewhere</p>
-                      <p className="text-xs text-slate-500">Open this tool elsewhere and import that file.</p>
-                    </div>
-                  </div>
-                </div>
+                <Share2 size={24} className="text-emerald-600 mb-6" />
+                <h3 className="text-xl font-black mb-4">Sharing</h3>
+                <Button onClick={handleShareWorkspace} className="w-full">Copy Workspace Link</Button>
               </Card>
-
-              <div className="space-y-8">
-                {/* Export/Import Controls */}
-                <Card className="p-8 text-center flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center mb-6"><Activity size={32} /></div>
-                  <h3 className="text-xl font-black mb-6">Manage Records</h3>
-                  <div className="space-y-3 w-full">
-                    <Button variant="secondary" className="w-full" onClick={() => {
-                       const data = JSON.stringify(gardens, null, 2);
-                       const blob = new Blob([data], { type: 'application/json' });
-                       const url = URL.createObjectURL(blob);
-                       const a = document.createElement('a');
-                       a.href = url;
-                       a.download = `hydrogrow-backup-${new Date().toISOString().split('T')[0]}.json`;
-                       a.click();
-                    }}><Download size={18}/><span>Backup Database (.json)</span></Button>
-                    
-                    <Button variant="outline" className="w-full border-slate-200 text-slate-600 bg-white" onClick={() => fileInputRef.current?.click()}>
-                      <Upload size={18}/><span>Restore Database</span>
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* Donation Card */}
-                <Card className="p-8 bg-slate-900 text-white relative overflow-hidden">
-                   <Heart className="absolute -bottom-4 -right-4 w-24 h-24 text-rose-500/10 -rotate-12" />
-                   <div className="relative z-10">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-rose-500 text-white rounded-xl">
-                          <Heart size={20} fill="currentColor" />
-                        </div>
-                        <h3 className="text-xl font-black">Support the Project</h3>
-                      </div>
-                      <p className="text-slate-400 text-xs mb-6 leading-relaxed">Your support helps us keep building features for the community!</p>
-                      <a 
-                        href="#" 
-                        className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all border border-slate-700"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          alert("Send your donation to gizmooo@yahoo.com via PayPal. Thank you for your support!");
-                          window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gizmooo@yahoo.com&currency_code=USD`, '_blank');
-                        }}
-                      >
-                        <Heart size={18} className="text-rose-500" />
-                        <span>Donate via PayPal</span>
-                      </a>
-                   </div>
-                </Card>
-              </div>
+              <Card className="p-8">
+                <Download size={24} className="text-emerald-600 mb-6" />
+                <h3 className="text-xl font-black mb-4">Export</h3>
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full">Restore Database</Button>
+              </Card>
             </div>
-
-            {/* Danger Zone */}
-            <Card className="p-10 border-rose-100 bg-rose-50/20 text-center">
-              <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div>
-              <h3 className="text-2xl font-black mb-4 text-rose-900">Danger Zone</h3>
-              <p className="text-rose-700/60 text-sm mb-6 max-w-sm mx-auto">This action cannot be undone. All gardens and specimen history will be permanently erased from this browser.</p>
-              <Button variant="danger" className="px-10" onClick={() => { if(confirm("Permanently wipe local user data?")) { localStorage.clear(); window.location.reload(); } }}>Wipe App Storage</Button>
-            </Card>
           </div>
         )}
       </main>
 
-      {/* --- MODALS --- */}
-
-      {/* Import Confirmation Modal */}
-      {isImportModalOpen && pendingImportData && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
-           <div className="bg-white rounded-[3.5rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
-                 <LinkIcon size={40} />
-              </div>
-              <h3 className="text-3xl font-black text-center text-slate-800 mb-4 tracking-tight">Shared Workspace Detected</h3>
-              <p className="text-slate-500 text-center font-medium mb-10">
-                You've opened a link containing <span className="text-emerald-600 font-bold">{pendingImportData.length} shared gardens</span>. How would you like to proceed?
-              </p>
-              <div className="space-y-4">
-                 <Button onClick={() => handleImportWorkspace(true)} className="w-full py-5 text-lg">Merge with Current Gardens</Button>
-                 <Button onClick={() => handleImportWorkspace(false)} variant="secondary" className="w-full py-4 text-slate-600">Replace Current Gardens</Button>
-                 <button onClick={() => setIsImportModalOpen(false)} className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors uppercase text-xs tracking-widest">Discard Shared Data</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {isPlantDetailOpen && inspectedPlant && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white rounded-[3.5rem] w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
-              <div className="p-10 pb-0 flex justify-between items-start bg-slate-50/50">
-                 <div className="flex items-center space-x-6 pb-6">
-                    <div className="w-16 h-16 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center shadow-lg">
-                       <Sprout size={32} />
-                    </div>
-                    <div>
-                       <h3 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-1">{inspectedPlant.name}</h3>
-                       <div className="flex items-center gap-2">
-                          <span className="text-sm text-slate-500 font-bold uppercase tracking-widest">{inspectedPlant.variety || 'Heirloom'}</span>
-                       </div>
-                    </div>
-                 </div>
-                 <button onClick={() => setIsPlantDetailOpen(false)} className="p-3 bg-white text-slate-400 hover:text-slate-600 rounded-2xl shadow-sm outline-none transition-all"><X size={24}/></button>
-              </div>
-
-              <div className="flex px-10 border-b border-slate-100 bg-slate-50/50">
-                 <button 
-                  onClick={() => setPlantDetailTab('overview')}
-                  className={`px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${plantDetailTab === 'overview' ? 'text-emerald-600' : 'text-slate-400'}`}
-                 >
-                    Overview
-                    {plantDetailTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full" />}
-                 </button>
-                 <button 
-                  onClick={() => setPlantDetailTab('notes')}
-                  className={`px-6 py-4 text-xs font-black uppercase tracking-widest transition-all relative ${plantDetailTab === 'notes' ? 'text-emerald-600' : 'text-slate-400'}`}
-                 >
-                    Care Logs
-                    {plantDetailTab === 'notes' && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full" />}
-                 </button>
-              </div>
-
-              <div className="px-10 overflow-y-auto flex-1 space-y-8 pb-10 pt-8">
-                 {plantDetailTab === 'overview' ? (
-                   <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 text-center">
-                          <Calendar size={20} className="text-slate-300 mx-auto mb-2" />
-                          <p className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Planted</p>
-                          <p className="font-black text-slate-700">{inspectedPlant.plantedDate}</p>
-                        </div>
-                        <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 text-center">
-                          <Clock size={20} className="text-blue-300 mx-auto mb-2" />
-                          <p className="text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">Age</p>
-                          <p className="font-black text-blue-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
-                        </div>
-                      </div>
-
-                      {inspectedPlant.projection && (
-                        <div className="bg-emerald-50/30 rounded-[2.5rem] p-8 border border-emerald-100">
-                            <div className="flex items-center gap-2 mb-6">
-                              <Sparkles size={18} className="text-emerald-600" />
-                              <h4 className="text-sm font-black uppercase text-emerald-600 tracking-widest">AI Projected Timeline</h4>
-                            </div>
-                            <div className="relative">
-                              <div className="absolute top-1/2 left-0 w-full h-1 bg-emerald-100 -translate-y-1/2 rounded-full"></div>
-                              <div className="relative flex justify-between">
-                                  {['Germination', 'Vegetative', 'Flowering', 'Harvest'].map((milestone, idx) => (
-                                      <div key={idx} className="flex flex-col items-center z-10">
-                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 bg-white border-2 border-emerald-100 text-emerald-200`}>
-                                            <div className="w-2 h-2 rounded-full bg-current" />
-                                          </div>
-                                          <p className="text-[10px] font-black uppercase text-slate-400 text-center leading-tight">{milestone}</p>
-                                      </div>
-                                  ))}
-                              </div>
-                            </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Update Lifecycle Phase</label>
-                        <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-[2rem]">
-                            {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map((s) => (
-                              <button 
-                                key={s} 
-                                onClick={() => updateStage(s as LifecycleStage)}
-                                className={`flex-1 min-w-[100px] px-4 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${inspectedPlant.stage === s ? 'bg-emerald-600 text-white shadow-md' : 'bg-transparent text-slate-400 hover:bg-white hover:text-slate-600'}`}
-                              >
-                                  {s}
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                   </>
-                 ) : (
-                   <div className="space-y-8 animate-in slide-in-from-right-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                         <div className="sm:col-span-3">
-                            <form onSubmit={addPlantNote} className="relative">
-                              <textarea 
-                                value={newNoteText}
-                                onChange={(e) => setNewNoteText(e.target.value)}
-                                placeholder="Log specimen progress, feeding changes..."
-                                className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] outline-none focus:border-emerald-500 font-medium text-slate-700 resize-none min-h-[140px] pr-16"
-                              />
-                              <button 
-                                type="submit"
-                                disabled={!newNoteText.trim()}
-                                className="absolute bottom-4 right-4 w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-30"
-                              >
-                                <Send size={20} />
-                              </button>
-                            </form>
-                         </div>
-                         <div className="sm:col-span-1">
-                            <button 
-                              onClick={handleAiScan}
-                              disabled={isScanning}
-                              className={`w-full h-full flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 border-dashed transition-all ${isScanning ? 'border-emerald-500 bg-emerald-50 animate-pulse-subtle' : 'border-slate-200 hover:border-emerald-400'}`}
-                            >
-                               {isScanning ? (
-                                 <Loader2 className="animate-spin text-emerald-600 mb-2" size={32} />
-                               ) : (
-                                 <Camera className="text-slate-400 mb-2" size={32} />
-                               )}
-                               <span className="text-[10px] font-black uppercase text-center">AI Scan</span>
-                            </button>
-                         </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {(inspectedPlant.notes || []).map(note => (
-                          <div key={note.id} className="group relative bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-emerald-100 transition-all">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">{note.date}</span>
-                              <button onClick={() => deletePlantNote(note.id)} className="text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
-                            </div>
-                            <p className="text-slate-700 font-medium leading-relaxed">{note.content}</p>
-                          </div>
-                        ))}
-                      </div>
-                   </div>
-                 )}
-              </div>
-              
-              <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                 <button onClick={() => deletePlant(inspectedPlant.id)} className="text-rose-400 hover:text-rose-600 font-black text-[10px] uppercase flex items-center gap-2 outline-none">
-                    <Trash2 size={16} /> Delete Specimen
-                 </button>
-                 <Button onClick={() => setIsPlantDetailOpen(false)} className="px-10">Close Detail</Button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* --- FORMS --- */}
-
+      {/* Modals for Adding Gardens/Plants - Simplified */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
-              <div className="flex justify-between items-center mb-10">
-                 <h3 className="text-3xl font-black text-slate-800">{editingGarden ? 'Edit Garden' : 'New Garden'}</h3>
-                 <button onClick={() => setIsModalOpen(false)} className="text-slate-300 hover:text-slate-500 transition-colors"><X size={24}/></button>
-              </div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+           <div className="bg-white rounded-[3rem] w-full max-w-lg p-10">
+              <h3 className="text-3xl font-black mb-10">New Garden</h3>
               <form onSubmit={saveGarden} className="space-y-6">
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Garden Name</label>
-                    <input name="gname" defaultValue={editingGarden?.name} placeholder="E.g. Basil Tower" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
-                 </div>
-                 <div className="grid grid-cols-2 gap-6">
-                    <div>
-                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Environment</label>
-                       <select name="gtype" defaultValue={editingGarden?.type || 'Indoor'} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none">
-                          <option value="Indoor">Indoor</option>
-                          <option value="Outdoor">Outdoor</option>
-                       </select>
-                    </div>
-                    <div>
-                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Date Established</label>
-                       <input name="gdate" type="date" defaultValue={editingGarden?.startedDate || new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" />
-                    </div>
-                 </div>
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg">Confirm Garden</Button>
+                 <input name="gname" placeholder="Name" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
+                 <select name="gtype" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none"><option value="Indoor">Indoor</option><option value="Outdoor">Outdoor</option></select>
+                 <input name="gdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" />
+                 <Button type="submit" className="w-full py-5">Confirm Garden</Button>
               </form>
            </div>
         </div>
       )}
 
       {isPlantModalOpen && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95">
-              <div className="flex items-center gap-3 mb-4">
-                 <Sprout className="text-emerald-600" />
-                 <h3 className="text-3xl font-black text-slate-800">Add Specimen</h3>
-              </div>
-              <p className="text-slate-500 text-sm mb-10 font-medium">Gemini AI will automatically predict growth stages for you.</p>
-              
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+           <div className="bg-white rounded-[3rem] w-full max-w-lg p-10">
+              <h3 className="text-3xl font-black mb-10">Add Specimen</h3>
               <form onSubmit={savePlant} className="space-y-6">
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Common Name</label>
-                    <input name="pname" placeholder="E.g. Basil" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
-                 </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Strain/Variety</label>
-                    <input name="pvariety" placeholder="E.g. Genovese" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
-                 </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block">Planted On</label>
-                    <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" />
-                 </div>
-                 
-                 <Button type="submit" className="w-full py-5 text-xl shadow-lg" disabled={isAiLoading}>
-                    {isAiLoading ? (
-                       <>
-                          <Loader2 className="animate-spin" size={20} />
-                          <span>Generating AI Timeline...</span>
-                       </>
-                    ) : (
-                       <>
-                          <Sparkles size={20} />
-                          <span>Save & Predict Growth</span>
-                       </>
-                    )}
-                 </Button>
+                 <input name="pname" placeholder="E.g. Basil" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
+                 <input name="pvariety" placeholder="Variety" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
+                 <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" />
+                 <Button type="submit" className="w-full py-5" disabled={isAiLoading}>{isAiLoading ? 'Predicting Growth...' : 'Save Specimen'}</Button>
               </form>
+           </div>
+        </div>
+      )}
+
+      {isPlantDetailOpen && inspectedPlant && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white rounded-[3.5rem] w-full max-w-3xl max-h-[90vh] overflow-y-auto p-10 relative">
+              <button onClick={() => setIsPlantDetailOpen(false)} className="absolute top-6 right-6 p-3"><X size={24}/></button>
+              <h3 className="text-4xl font-black text-slate-800 mb-8">{inspectedPlant.name}</h3>
+              <div className="space-y-8">
+                <Card className="bg-slate-50">
+                  <h4 className="font-black mb-4">Phase: {inspectedPlant.stage}</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-white rounded-2xl">Planted: {inspectedPlant.plantedDate}</div>
+                    <div className="p-4 bg-white rounded-2xl">Age: {calculateAge(inspectedPlant.plantedDate)} Days</div>
+                  </div>
+                </Card>
+                <div className="space-y-4">
+                  <h4 className="font-black text-lg">Care Logs</h4>
+                  {inspectedPlant.notes.map(n => (
+                    <div key={n.id} className="p-4 border-l-4 border-emerald-500 bg-emerald-50/20 rounded-r-2xl text-sm italic">"{n.content}" - {n.date}</div>
+                  ))}
+                  <button onClick={handleAiScan} className="w-full py-4 border-2 border-dashed border-emerald-200 text-emerald-600 font-black rounded-2xl">Gemini Health Scan</button>
+                </div>
+              </div>
            </div>
         </div>
       )}
