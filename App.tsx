@@ -42,7 +42,10 @@ import {
   Link as LinkIcon,
   Copy,
   Check,
-  Globe
+  Globe,
+  Bot,
+  Image as ImageIcon,
+  Zap
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GrowthProjection, GardenNote } from './types.ts';
 import { predictGrowthTimeline } from './services/geminiService.ts';
@@ -88,7 +91,7 @@ const calculateAge = (date: string) => {
 
 // --- Dashboard View ---
 
-const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExportPDF, onExportExcel, onShareWorkspace, onShareApp }: any) => {
+const DashboardView = ({ gardens, setView, onGardenSelect, onExportPDF, onExportExcel, onShareApp }: any) => {
   const allPlants = gardens.flatMap((g: Garden) => g.plants);
   const totalPlants = allPlants.length;
   
@@ -183,10 +186,10 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExpo
             <Button onClick={onExportPDF} className="w-full py-4 shadow-xl">
               <Printer size={18} /><span>Generate PDF Report</span>
             </Button>
-            <Button onClick={onShareWorkspace} variant="outline" className="w-full py-4 bg-white border-emerald-100 text-emerald-600">
-              <Share2 size={18} /><span>Share Workspace</span>
+            <Button onClick={onExportExcel} variant="outline" className="w-full py-4 bg-white border-emerald-100 text-emerald-600">
+              <FileSpreadsheet size={18} /><span>Export History (CSV)</span>
             </Button>
-            <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Workspace includes all data</p>
+            <p className="text-[10px] text-center text-slate-400 uppercase font-black tracking-widest">Reports include full history</p>
           </div>
         </div>
       </Card>
@@ -270,25 +273,6 @@ const DashboardView = ({ gardens, notifications, setView, onGardenSelect, onExpo
               )}
             </div>
           </Card>
-
-          <Card>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-black text-slate-800">Environmental Alerts</h3>
-              <Bell size={18} className="text-slate-300" />
-            </div>
-            <div className="space-y-4">
-              {notifications.slice(0, 3).map((n: any) => (
-                <div key={n.id} className="flex items-start space-x-3 p-4 border-l-4 border-emerald-500 bg-emerald-50/30 rounded-r-2xl">
-                  <Clock size={16} className="text-emerald-600 mt-1 shrink-0" />
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{n.title}</p>
-                    <p className="text-xs text-slate-500">{n.message}</p>
-                  </div>
-                </div>
-              ))}
-              {notifications.length === 0 && <p className="text-slate-400 text-center py-6">All systems optimal.</p>}
-            </div>
-          </Card>
         </div>
       </div>
     </div>
@@ -327,7 +311,15 @@ export default function App() {
   const [plantDetailTab, setPlantDetailTab] = useState<'overview' | 'notes'>('overview');
   const [newNoteText, setNewNoteText] = useState('');
 
+  // AI Assistant state
+  const [assistantMessage, setAssistantMessage] = useState('');
+  const [assistantResponse, setAssistantResponse] = useState<string | null>(null);
+  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
+  const [assistantImage, setAssistantImage] = useState<string | null>(null);
+  const [isAssistantScanning, setIsAssistantScanning] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const assistantFileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -671,6 +663,82 @@ export default function App() {
     }
   };
 
+  const handleAssistantAsk = async () => {
+    if (!assistantMessage.trim() && !assistantImage) return;
+    setIsAssistantLoading(true);
+    setAssistantResponse(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const parts: any[] = [{ text: `You are a high-level expert in hydroponics, aquaponics, and indoor gardening. 
+        You are currently assisting with the garden "${selectedGarden?.name}" which is an ${selectedGarden?.type} environment. 
+        User Specimen count: ${selectedGarden?.plants?.length || 0}.
+        Provide clear, actionable, and scientific advice. If an image is provided, focus your analysis on visible symptoms.
+        
+        Question: ${assistantMessage}` }];
+
+      if (assistantImage) {
+        parts.push({
+          inlineData: {
+            data: assistantImage.split(',')[1],
+            mimeType: 'image/jpeg'
+          }
+        });
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: { parts }
+      });
+
+      setAssistantResponse(response.text || "I'm sorry, I couldn't generate a response.");
+    } catch (err) {
+      console.error(err);
+      setAssistantResponse("Expert offline. Please verify API configuration or internet connectivity.");
+    } finally {
+      setIsAssistantLoading(false);
+    }
+  };
+
+  const handleAssistantSnapPhoto = async () => {
+    setIsAssistantScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        await new Promise(r => setTimeout(r, 800)); // Short warm up
+        
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        if (canvas && video) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext('2d')?.drawImage(video, 0, 0);
+          const base64Image = canvas.toDataURL('image/jpeg');
+          setAssistantImage(base64Image);
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Unable to access camera for expert snap.");
+    } finally {
+      setIsAssistantScanning(false);
+    }
+  };
+
+  const handleAssistantImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setAssistantImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const updateStage = (stage: LifecycleStage) => {
     if (!selectedGardenId || !selectedPlantId) return;
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
@@ -697,6 +765,13 @@ export default function App() {
         ref={fileInputRef} 
         onChange={handleImportData} 
         accept=".json" 
+        className="hidden" 
+      />
+      <input 
+        type="file" 
+        ref={assistantFileInputRef} 
+        onChange={handleAssistantImageChange} 
+        accept="image/*" 
         className="hidden" 
       />
 
@@ -736,7 +811,7 @@ export default function App() {
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight capitalize">{selectedGarden ? selectedGarden.name : view}</h1>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-              Indoor Hydroponic Assistant
+              Your Garden Assistant
             </p>
           </div>
           {view === 'gardens' && !selectedGarden && (
@@ -744,7 +819,7 @@ export default function App() {
           )}
         </header>
 
-        {view === 'dashboard' && <DashboardView gardens={gardens} notifications={notifications} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareWorkspace={handleShareWorkspace} onShareApp={handleShareApp} />}
+        {view === 'dashboard' && <DashboardView gardens={gardens} setView={setView} onGardenSelect={handleGardenSelect} onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onShareApp={handleShareApp} />}
 
         {view === 'gardens' && !selectedGarden && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
@@ -849,6 +924,95 @@ export default function App() {
                     <div className="p-4 bg-white/5 rounded-2xl">
                       <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Type</p>
                       <p className="font-bold">{selectedGarden.type}</p>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* --- Garden AI Assistant Card --- */}
+                <Card className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-100 overflow-hidden relative group">
+                  <Zap className="absolute -top-4 -right-4 w-16 h-16 text-emerald-100 group-hover:text-emerald-200/50 transition-colors rotate-12" />
+                  <div className="relative z-10">
+                    <h4 className="font-black text-emerald-800 mb-4 flex items-center gap-2">
+                      <Bot size={20} className="text-emerald-600" /> Garden Expert AI
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      {assistantResponse ? (
+                        <div className="p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-emerald-100 text-xs text-slate-700 leading-relaxed shadow-sm animate-in zoom-in-95 duration-300">
+                          <div className="flex justify-between items-center mb-2">
+                             <div className="font-black text-[9px] uppercase text-emerald-600 flex items-center gap-1"><Sparkles size={10}/> AI Diagnosis</div>
+                             <button onClick={() => setAssistantResponse(null)} className="text-slate-300 hover:text-slate-500"><X size={12}/></button>
+                          </div>
+                          <div className="whitespace-pre-wrap font-medium">{assistantResponse}</div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-emerald-700/70 font-medium leading-relaxed italic">
+                          "Ask me about nutrient mixing, pest ID, or growth optimization for your specimens."
+                        </p>
+                      )}
+
+                      <div className="space-y-2">
+                        {assistantImage && (
+                          <div className="relative w-full aspect-square max-h-48 rounded-2xl overflow-hidden border-2 border-emerald-200 mb-2 group-photo shadow-lg">
+                            <img src={assistantImage} alt="Context Preview" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                               <button 
+                                onClick={() => setAssistantImage(null)}
+                                className="p-2 bg-rose-500 text-white rounded-full shadow-2xl hover:scale-110 transition-transform"
+                               >
+                                <X size={18} />
+                               </button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="relative">
+                          <textarea 
+                            value={assistantMessage}
+                            onChange={(e) => setAssistantMessage(e.target.value)}
+                            placeholder="Describe the issue or ask a question..."
+                            className="w-full p-5 bg-white border border-emerald-100 rounded-3xl outline-none focus:border-emerald-500 text-xs font-medium resize-none min-h-[100px] shadow-inner"
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <div className="flex flex-col gap-2">
+                            <button 
+                              onClick={() => assistantFileInputRef.current?.click()}
+                              className="p-3 bg-white text-emerald-600 rounded-2xl border border-emerald-100 shadow-sm hover:bg-emerald-50 transition-colors"
+                              title="Upload Image"
+                            >
+                              <ImageIcon size={20} />
+                            </button>
+                            <button 
+                              onClick={handleAssistantSnapPhoto}
+                              disabled={isAssistantScanning}
+                              className={`p-3 rounded-2xl border border-emerald-100 shadow-sm transition-all ${isAssistantScanning ? 'bg-emerald-100 text-emerald-700 animate-pulse' : 'bg-white text-emerald-600 hover:bg-emerald-50'}`}
+                              title="Snap Live Photo"
+                            >
+                              {isAssistantScanning ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
+                            </button>
+                          </div>
+                          
+                          <button 
+                            onClick={handleAssistantAsk}
+                            disabled={isAssistantLoading || (!assistantMessage.trim() && !assistantImage)}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isAssistantLoading ? (
+                              <>
+                                <Loader2 className="animate-spin" size={16} />
+                                <span>Consulting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send size={16} />
+                                <span>Get Advice</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Card>
