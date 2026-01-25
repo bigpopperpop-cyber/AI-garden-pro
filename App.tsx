@@ -35,7 +35,8 @@ import {
   Link as LinkIcon,
   Copy,
   Check,
-  Globe
+  Globe,
+  Coffee
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GardenNote } from './types.ts';
 
@@ -56,6 +57,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
     secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
     outline: "border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
     danger: "bg-rose-50 text-rose-600 hover:bg-rose-100",
+    coffee: "bg-[#6F4E37] text-white hover:bg-[#5D4037] shadow-md shadow-amber-100",
   };
   return (
     <button 
@@ -537,6 +539,25 @@ export default function App() {
                     a.click();
                   }}>Backup Database</Button>
                   <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>Restore Backup</Button>
+                </div>
+              </Card>
+              
+              {/* --- Donation Card --- */}
+              <Card className="p-8 bg-amber-50/30 border-2 border-amber-100 md:col-span-2">
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center shrink-0">
+                    <Coffee size={32} />
+                  </div>
+                  <div className="flex-1 text-center md:text-left">
+                    <h3 className="text-xl font-black text-slate-800 mb-1">Support the Developer</h3>
+                    <p className="text-sm text-slate-500 mb-4">If you find this tool helpful, consider donating a cup of coffee to support future updates and gizmos!</p>
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <Button variant="coffee" onClick={() => window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=gizmooo@yahoo.com&item_name=Support+HydroGrow+Pro', '_blank')}>
+                         Donate via PayPal
+                      </Button>
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">To: gizmooo@yahoo.com</span>
+                    </div>
+                  </div>
                 </div>
               </Card>
             </div>
