@@ -36,7 +36,11 @@ import {
   Copy,
   Check,
   Globe,
-  Coffee
+  Coffee,
+  HelpCircle,
+  RefreshCcw,
+  Save,
+  FileUp
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GardenNote } from './types.ts';
 
@@ -401,6 +405,14 @@ export default function App() {
     setIsPlantDetailOpen(false);
   };
 
+  const handleResetApp = () => {
+    if (confirm("Wait! This will delete ALL your gardens and data from this browser. Are you sure you want a fresh start?")) {
+      setGardens([]);
+      localStorage.removeItem('hydro_gardens_core');
+      setView('dashboard');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       <input type="file" ref={fileInputRef} onChange={(e) => {
@@ -513,33 +525,75 @@ export default function App() {
 
         {view === 'settings' && (
           <div className="max-w-4xl mx-auto py-10 space-y-8 animate-in slide-in-from-bottom-6">
-            <Card className="p-8 border-l-8 border-l-emerald-500">
-              <div className="flex items-center gap-4 mb-6">
-                <ShieldCheck size={28} className="text-emerald-600" />
-                <h3 className="text-xl font-black text-slate-800">Your Data is Private</h3>
+            {/* --- Privacy Notice --- */}
+            <Card className="p-8 border-l-8 border-l-emerald-500 bg-emerald-50/10">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">Local & Private</h3>
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">No Cloud Required</p>
+                </div>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed">HydroGrow Pro is local-first. All information is stored directly in your browser's localStorage. No cloud account required.</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                HydroGrow Pro is "local-first." This means all your garden notes and data are saved <strong>only</strong> in this specific browser on this device. We never see your data, and there's no login required!
+              </p>
             </Card>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Card className="p-8">
-                <Share2 size={24} className="text-emerald-600 mb-6" />
-                <h3 className="text-xl font-black mb-4">Sharing</h3>
-                <Button onClick={handleShareWorkspace} className="w-full">Share Workspace Link</Button>
+              {/* --- Share Section --- */}
+              <Card className="p-8 flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
+                  <Share2 size={24} className="text-blue-500" />
+                  <h3 className="text-xl font-black">Share Garden</h3>
+                </div>
+                <p className="text-sm text-slate-500 mb-6 flex-1">
+                  Want to show off your setup? Create a special link that lets someone else import your current garden layout.
+                </p>
+                <Button onClick={handleShareWorkspace} variant="outline" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50">
+                  <LinkIcon size={18} /><span>Copy Share Link</span>
+                </Button>
               </Card>
-              <Card className="p-8">
-                <Download size={24} className="text-emerald-600 mb-6" />
-                <h3 className="text-xl font-black mb-4">Data</h3>
+
+              {/* --- Backup Section --- */}
+              <Card className="p-8 flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
+                  <Save size={24} className="text-emerald-600" />
+                  <h3 className="text-xl font-black">Safety Backup</h3>
+                </div>
+                <p className="text-sm text-slate-500 mb-6 flex-1">
+                  It's a good idea to save your progress to a file occasionally. You can use this file to move your data to a new computer.
+                </p>
                 <div className="space-y-3">
-                  <Button variant="secondary" className="w-full" onClick={() => {
+                  <Button variant="secondary" className="w-full flex justify-between px-4" onClick={() => {
                     const blob = new Blob([JSON.stringify(gardens)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = "hydrogrow_backup.json";
+                    a.download = "my_hydro_backup.json";
                     a.click();
-                  }}>Backup Database</Button>
-                  <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>Restore Backup</Button>
+                  }}>
+                    <span>Download File</span><Download size={18} />
+                  </Button>
+                  <Button variant="outline" className="w-full flex justify-between px-4" onClick={() => fileInputRef.current?.click()}>
+                    <span>Load from File</span><FileUp size={18} />
+                  </Button>
                 </div>
+              </Card>
+
+              {/* --- Fresh Start Section --- */}
+              <Card className="p-8 flex flex-col bg-slate-50/50">
+                <div className="flex items-center gap-3 mb-4">
+                  <RefreshCcw size={24} className="text-slate-400" />
+                  <h3 className="text-xl font-black text-slate-600">Fresh Start</h3>
+                </div>
+                <p className="text-sm text-slate-500 mb-6 flex-1">
+                  Want to start over completely? This button clears all your data. Use with caution!
+                </p>
+                <Button variant="danger" className="w-full" onClick={handleResetApp}>
+                  <Trash2 size={18} /><span>Clear Everything</span>
+                </Button>
               </Card>
               
               {/* --- Donation Card --- */}
@@ -555,7 +609,9 @@ export default function App() {
                       <Button variant="coffee" onClick={() => window.open('https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=gizmooo@yahoo.com&item_name=Support+HydroGrow+Pro', '_blank')}>
                          Donate via PayPal
                       </Button>
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">To: gizmooo@yahoo.com</span>
+                      <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                         <Copy size={12}/> gizmooo@yahoo.com
+                      </div>
                     </div>
                   </div>
                 </div>
