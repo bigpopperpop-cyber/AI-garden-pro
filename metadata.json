@@ -1,8 +1,5 @@
 {
-  "name": "HydroGrow Pro",
-  "description": "A comprehensive management and troubleshooting platform for indoor hydroponic and aquaponic enthusiasts. Track setups, plants, and equipment while leveraging AI for disease diagnosis and growth optimization.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
+  "name": "HydroGrow Core",
+  "description": "A comprehensive local-first management platform for indoor hydroponic and aquaponic enthusiasts. Focus on manual tracking, specimen logging, and lifecycle management.",
+  "requestFramePermissions": []
 }
