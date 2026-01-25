@@ -355,7 +355,7 @@ export default function App() {
     if (editingGarden) {
       setGardens(prev => prev.map(g => g.id === editingGarden.id ? { ...g, name, type, startedDate } : g));
     } else {
-      setGardens(prev => [...prev, { id: Date.now().toString(), name, type, startedDate, description: "", plants: [], notes: [] }]);
+      setGardens(prev => [...prev, { id: Date.now().toString(), name, type, startedDate, plants: [], notes: [] }]);
     }
     setIsModalOpen(false);
     setEditingGarden(null);
@@ -366,11 +366,10 @@ export default function App() {
     if (!selectedGardenId) return;
     const f = e.currentTarget;
     const name = (f.elements.namedItem('pname') as HTMLInputElement).value;
-    const variety = (f.elements.namedItem('pvariety') as HTMLInputElement).value;
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
     
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: [...g.plants, { id: Date.now().toString(), name, variety, plantedDate, stage: 'Germination', harvests: [], notes: [] }]
+      ...g, plants: [...g.plants, { id: Date.now().toString(), name, plantedDate, stage: 'Germination', harvests: [], notes: [] }]
     } : g));
     setIsPlantModalOpen(false);
   };
@@ -492,13 +491,12 @@ export default function App() {
                             <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm"><Sprout size={28} /></div>
                             <div>
                               <h4 className="font-black text-slate-800 text-lg">{p.name}</h4>
-                              <p className="text-xs text-slate-400 font-bold uppercase">{p.variety || 'Heirloom'}</p>
+                              <p className="text-xs text-slate-400 font-bold uppercase">Age: {calculateAge(p.plantedDate)} Days</p>
                             </div>
                           </div>
                           <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg"><ExternalLink size={18} /></button>
                         </div>
                         <div className="mt-4 flex gap-4">
-                           <div className="px-3 py-1 bg-white rounded-lg border text-[10px] font-black uppercase text-slate-400">Age: {calculateAge(p.plantedDate)}d</div>
                            <div className="px-3 py-1 bg-white rounded-lg border text-[10px] font-black uppercase text-emerald-600">{p.stage}</div>
                         </div>
                       </div>
@@ -587,7 +585,6 @@ export default function App() {
               <h3 className="text-3xl font-black mb-10">Add Specimen</h3>
               <form onSubmit={savePlant} className="space-y-6">
                  <input name="pname" placeholder="Name (e.g. Basil)" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
-                 <input name="pvariety" placeholder="Variety/Strain" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold" />
                  <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none" />
                  <Button type="submit" className="w-full py-5">Save Specimen</Button>
                  <button type="button" onClick={() => setIsPlantModalOpen(false)} className="w-full text-slate-400 font-bold py-2">Cancel</button>

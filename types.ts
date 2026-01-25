@@ -7,14 +7,6 @@ export interface UserProfile {
   avatarColor: string;
 }
 
-export interface GrowthProjection {
-  germinationDate: string;
-  vegetativeDate: string;
-  floweringDate: string;
-  harvestDate: string;
-  notes: string;
-}
-
 export interface HarvestRecord {
   id: string;
   date: string;
@@ -31,11 +23,9 @@ export interface GardenNote {
 export interface Plant {
   id: string;
   name: string;
-  variety?: string;
   plantedDate: string;
   stage: LifecycleStage;
   harvests: HarvestRecord[];
-  projection?: GrowthProjection;
   notes: GardenNote[];
 }
 
@@ -44,7 +34,6 @@ export interface Garden {
   name: string;
   type: GardenType;
   startedDate: string;
-  description: string;
   plants: Plant[];
   notes: GardenNote[];
 }
