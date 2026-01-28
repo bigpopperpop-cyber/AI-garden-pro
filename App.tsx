@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -40,7 +41,9 @@ import {
   HelpCircle,
   RefreshCcw,
   Save,
-  FileUp
+  FileUp,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GardenNote } from './types.ts';
 
@@ -81,6 +84,44 @@ const calculateAge = (date: string) => {
   const now = new Date();
   const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   return diff < 0 ? 0 : diff;
+};
+
+// Extremely aggressive image compression to fit in localStorage
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        // Use quality 0.5 to keep file sizes around 20-40KB
+        resolve(canvas.toDataURL('image/jpeg', 0.5));
+      };
+    };
+    reader.onerror = (error) => reject(error);
+  });
 };
 
 // --- Dashboard View ---
@@ -284,6 +325,7 @@ export default function App() {
   const [newNoteText, setNewNoteText] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
@@ -375,7 +417,7 @@ export default function App() {
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
     
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: [...g.plants, { id: Date.now().toString(), name, plantedDate, stage: 'Germination', harvests: [], notes: [] }]
+      ...g, plants: [...g.plants, { id: Date.now().toString(), name, plantedDate, stage: 'Germination', harvests: [], notes: [], phasePhotos: {} }]
     } : g));
     setIsPlantModalOpen(false);
   };
@@ -395,6 +437,20 @@ export default function App() {
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
       ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, stage } : p)
     } : g));
+  };
+
+  const handleCapturePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && selectedGardenId && selectedPlantId && inspectedPlant) {
+      const compressed = await compressImage(file);
+      const stage = inspectedPlant.stage;
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+        ...g, plants: g.plants.map(p => p.id === selectedPlantId ? {
+          ...p,
+          phasePhotos: { ...p.phasePhotos, [stage]: compressed }
+        } : p)
+      } : g));
+    }
   };
 
   const deletePlant = (plantId: string) => {
@@ -425,6 +481,16 @@ export default function App() {
           reader.readAsText(file);
         }
       }} accept=".json" className="hidden" />
+
+      {/* Camera Input */}
+      <input 
+        type="file" 
+        ref={cameraInputRef} 
+        onChange={handleCapturePhoto} 
+        accept="image/*" 
+        capture="environment" 
+        className="hidden" 
+      />
 
       {/* --- Desktop Sidebar --- */}
       <nav className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col p-6 space-y-8 z-50">
@@ -519,7 +585,11 @@ export default function App() {
                       <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-4 md:p-6 hover:border-emerald-200 transition-all">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3 md:space-x-5 min-w-0">
-                            <div className="w-10 h-10 md:w-14 md:h-14 bg-white text-emerald-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-sm shrink-0"><Sprout size={20} /></div>
+                            {p.phasePhotos?.[p.stage] ? (
+                              <img src={p.phasePhotos[p.stage]} className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl object-cover shadow-sm shrink-0" alt={p.name} />
+                            ) : (
+                              <div className="w-10 h-10 md:w-14 md:h-14 bg-white text-emerald-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-sm shrink-0"><Sprout size={20} /></div>
+                            )}
                             <div className="min-w-0">
                               <h4 className="font-black text-slate-800 text-sm md:text-lg truncate">{p.name}</h4>
                               <p className="text-[8px] md:text-xs text-slate-400 font-bold uppercase">Age: {calculateAge(p.plantedDate)}d</p>
@@ -670,7 +740,31 @@ export default function App() {
            <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 md:p-10 relative animate-in zoom-in-95">
               <button onClick={() => setIsPlantDetailOpen(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 md:p-3 hover:text-rose-500"><X size={20}/></button>
               <h3 className="text-2xl md:text-4xl font-black text-slate-800 mb-6 md:mb-8 pr-8">{inspectedPlant.name}</h3>
+              
               <div className="space-y-6 md:space-y-8">
+                {/* Photo Section */}
+                <div className="relative group">
+                  <div className="w-full aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden flex flex-col items-center justify-center group-hover:border-emerald-300 transition-all">
+                    {inspectedPlant.phasePhotos?.[inspectedPlant.stage] ? (
+                      <img src={inspectedPlant.phasePhotos[inspectedPlant.stage]} className="w-full h-full object-cover" alt={inspectedPlant.name} />
+                    ) : (
+                      <div className="flex flex-col items-center text-slate-400">
+                        <ImageIcon size={48} className="mb-2 opacity-50" />
+                        <p className="text-xs font-black uppercase tracking-widest">No photo for {inspectedPlant.stage}</p>
+                      </div>
+                    )}
+                    <button 
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="absolute bottom-4 right-4 p-4 bg-emerald-600 text-white rounded-2xl shadow-xl hover:bg-emerald-700 transition-all"
+                    >
+                      <Camera size={24} />
+                    </button>
+                  </div>
+                  <p className="mt-2 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Capture progress for "{inspectedPlant.stage}" phase
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 md:p-6 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-100">
                     <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-2">Lifecycle Stage</p>
@@ -686,6 +780,25 @@ export default function App() {
                     <p className="text-[10px] md:text-xs text-slate-400 mt-1">Planted on {inspectedPlant.plantedDate}</p>
                   </div>
                 </div>
+
+                {/* History Gallery */}
+                {inspectedPlant.phasePhotos && Object.keys(inspectedPlant.phasePhotos).length > 0 && (
+                  <div className="space-y-4">
+                     <h4 className="font-black text-base md:text-lg flex items-center gap-2">Gallery</h4>
+                     <div className="flex gap-4 overflow-x-auto pb-2 px-1">
+                        {Object.entries(inspectedPlant.phasePhotos).map(([phase, img]) => (
+                          <div key={phase} className="shrink-0 group">
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden border-2 border-slate-100 group-hover:border-emerald-500 transition-all relative">
+                              <img src={img} className="w-full h-full object-cover" alt={phase} />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                <span className="text-[8px] text-white font-black uppercase px-2 text-center leading-tight">{phase}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                     </div>
+                  </div>
+                )}
 
                 <div className="space-y-4 md:space-y-6">
                   <h4 className="font-black text-base md:text-lg flex items-center gap-2"><ClipboardList size={18} className="text-emerald-600" /> Care Logs</h4>

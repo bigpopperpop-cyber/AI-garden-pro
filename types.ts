@@ -1,3 +1,4 @@
+
 export type GardenType = 'Indoor' | 'Outdoor';
 export type LifecycleStage = 'Germination' | 'Vegetative' | 'Flowering' | 'Fruiting' | 'Harvested';
 
@@ -27,6 +28,7 @@ export interface Plant {
   stage: LifecycleStage;
   harvests: HarvestRecord[];
   notes: GardenNote[];
+  phasePhotos?: Partial<Record<LifecycleStage, string>>; // Base64 compressed strings
 }
 
 export interface Garden {
