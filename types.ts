@@ -1,4 +1,3 @@
-
 export type GardenType = 'Indoor' | 'Outdoor';
 export type LifecycleStage = 'Germination' | 'Vegetative' | 'Flowering' | 'Fruiting' | 'Harvested';
 
@@ -19,6 +18,14 @@ export interface GardenNote {
   id: string;
   date: string;
   content: string;
+}
+
+export interface Reminder {
+  id: string;
+  title: string;
+  date: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
 }
 
 export interface Plant {
@@ -49,4 +56,4 @@ export interface Notification {
   type: 'maintenance' | 'alert' | 'tip';
 }
 
-export type ViewState = 'dashboard' | 'gardens' | 'settings';
+export type ViewState = 'dashboard' | 'gardens' | 'calendar' | 'settings';
