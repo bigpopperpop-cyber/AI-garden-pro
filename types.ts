@@ -31,8 +31,12 @@ export interface Reminder {
 export interface Plant {
   id: string;
   name: string;
+  variety?: string;
   plantedDate: string;
+  projectedHarvestDate?: string;
   stage: LifecycleStage;
+  totalYield?: number;
+  yieldUnit?: string;
   harvests: HarvestRecord[];
   notes: GardenNote[];
   phasePhotos?: Partial<Record<LifecycleStage, string>>; // Base64 compressed strings

@@ -44,7 +44,9 @@ import {
   Camera,
   Image as ImageIcon,
   CheckSquare,
-  Square
+  Square,
+  Trophy,
+  Target
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GardenNote, Reminder } from './types.ts';
 
@@ -85,6 +87,14 @@ const calculateAge = (date: string) => {
   const now = new Date();
   const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   return diff < 0 ? 0 : diff;
+};
+
+const getDaysRemaining = (targetDate?: string) => {
+  if (!targetDate) return null;
+  const target = new Date(targetDate);
+  const now = new Date();
+  const diff = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return diff;
 };
 
 const compressImage = (file: File): Promise<string> => {
@@ -390,6 +400,8 @@ export default function App() {
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
   const [newGardenNoteText, setNewGardenNoteText] = useState('');
+  const [yieldAmount, setYieldAmount] = useState<string>('');
+  const [yieldUnit, setYieldUnit] = useState<string>('g');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -449,9 +461,22 @@ export default function App() {
     if (!selectedGardenId) return;
     const f = e.currentTarget;
     const name = (f.elements.namedItem('pname') as HTMLInputElement).value;
+    const variety = (f.elements.namedItem('pvariety') as HTMLInputElement).value;
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
+    const projectedHarvestDate = (f.elements.namedItem('pharvest') as HTMLInputElement).value;
+    
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: [...g.plants, { id: Date.now().toString(), name, plantedDate, stage: 'Germination', harvests: [], notes: [], phasePhotos: {} }]
+      ...g, plants: [...g.plants, { 
+        id: Date.now().toString(), 
+        name, 
+        variety,
+        plantedDate, 
+        projectedHarvestDate,
+        stage: 'Germination', 
+        harvests: [], 
+        notes: [], 
+        phasePhotos: {} 
+      }]
     } : g));
     setIsPlantModalOpen(false);
   };
@@ -479,6 +504,19 @@ export default function App() {
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
       ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, stage } : p)
     } : g));
+  };
+
+  const saveYield = () => {
+    if (!selectedGardenId || !selectedPlantId || !yieldAmount) return;
+    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { 
+        ...p, 
+        totalYield: parseFloat(yieldAmount), 
+        yieldUnit: yieldUnit 
+      } : p)
+    } : g));
+    setYieldAmount('');
+    alert("Yield record saved!");
   };
 
   const handleCapturePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -608,22 +646,40 @@ export default function App() {
                     <Button onClick={() => setIsPlantModalOpen(true)} variant="outline" className="text-[10px] py-1.5 px-3 uppercase"><Plus size={14} /><span>Add Plant</span></Button>
                   </div>
                   <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
-                    {selectedGarden.plants.map(p => (
-                      <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 hover:border-emerald-200 transition-all flex flex-col">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            {p.phasePhotos?.[p.stage] ? (
-                              <img src={p.phasePhotos[p.stage]} className="w-10 h-10 rounded-xl object-cover shrink-0" alt={p.name} />
-                            ) : (
-                              <div className="w-10 h-10 bg-white text-emerald-600 rounded-xl flex items-center justify-center shrink-0 border"><Sprout size={18} /></div>
-                            )}
-                            <div className="min-w-0"><p className="font-bold text-slate-800 text-sm truncate">{p.name}</p><p className="text-[8px] text-slate-400 font-bold uppercase">{calculateAge(p.plantedDate)}d old</p></div>
+                    {selectedGarden.plants.map(p => {
+                      const daysLeft = getDaysRemaining(p.projectedHarvestDate);
+                      return (
+                        <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 hover:border-emerald-200 transition-all flex flex-col group relative">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-3 overflow-hidden">
+                              {p.phasePhotos?.[p.stage] ? (
+                                <img src={p.phasePhotos[p.stage]} className="w-10 h-10 rounded-xl object-cover shrink-0" alt={p.name} />
+                              ) : (
+                                <div className="w-10 h-10 bg-white text-emerald-600 rounded-xl flex items-center justify-center shrink-0 border"><Sprout size={18} /></div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 text-sm truncate">{p.name}</p>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase truncate">{p.variety || 'Unknown Variety'}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-2 bg-emerald-600 text-white rounded-lg shadow-sm"><ExternalLink size={14} /></button>
                           </div>
-                          <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-2 bg-emerald-600 text-white rounded-lg shadow-sm"><ExternalLink size={14} /></button>
+                          <div className="flex justify-between items-center mt-auto">
+                            <div className="px-2 py-0.5 bg-white rounded-md border text-[8px] font-black uppercase text-emerald-600">{p.stage}</div>
+                            {daysLeft !== null && daysLeft > 0 && (
+                              <div className="flex items-center gap-1 text-[8px] font-black uppercase text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                                <Clock size={10} /> {daysLeft} Days to Harvest
+                              </div>
+                            )}
+                            {p.totalYield && (
+                              <div className="flex items-center gap-1 text-[8px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                                <Trophy size={10} /> {p.totalYield}{p.yieldUnit}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-auto px-2 py-0.5 bg-white rounded-md border text-[8px] font-black uppercase text-emerald-600 w-fit">{p.stage}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </Card>
               </div>
@@ -725,10 +781,26 @@ export default function App() {
       {isPlantModalOpen && (
         <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
            <div className="bg-white rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-black mb-8">Add Specimen</h3>
+              <h3 className="text-2xl font-black mb-6">Add Specimen</h3>
               <form onSubmit={savePlant} className="space-y-4">
-                 <input name="pname" placeholder="Specimen Name (e.g. Heirloom Tomato)" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                 <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none text-sm" />
+                 <div className="space-y-1">
+                   <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Display Name</p>
+                   <input name="pname" placeholder="e.g. Tomato #1" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
+                 </div>
+                 <div className="space-y-1">
+                   <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Variety / Strain</p>
+                   <input name="pvariety" placeholder="e.g. Beefsteak" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-1">
+                     <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Planted Date</p>
+                     <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none text-sm" />
+                   </div>
+                   <div className="space-y-1">
+                     <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Proj. Harvest</p>
+                     <input name="pharvest" type="date" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none text-sm" />
+                   </div>
+                 </div>
                  <Button type="submit" className="w-full py-4 mt-4">Save Specimen</Button>
                  <button type="button" onClick={() => setIsPlantModalOpen(false)} className="w-full text-slate-400 font-bold py-2 text-sm">Cancel</button>
               </form>
@@ -740,7 +812,11 @@ export default function App() {
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 md:p-6 bg-slate-900/60 backdrop-blur-md">
            <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] w-full max-w-3xl max-h-[95vh] overflow-y-auto p-6 md:p-10 relative animate-in zoom-in-95 custom-scrollbar">
               <button onClick={() => setIsPlantDetailOpen(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 hover:text-rose-500 transition-colors"><X size={24}/></button>
-              <h3 className="text-2xl md:text-4xl font-black text-slate-800 mb-6 md:mb-8 pr-12">{inspectedPlant.name}</h3>
+              
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-6 md:mb-8 pr-12">
+                <h3 className="text-2xl md:text-4xl font-black text-slate-800 leading-tight">{inspectedPlant.name}</h3>
+                <span className="text-emerald-600 font-bold text-lg md:text-xl pb-0.5">{inspectedPlant.variety}</span>
+              </div>
               
               <div className="space-y-8">
                 <div className="relative group rounded-3xl overflow-hidden border-2 border-slate-100 aspect-video bg-slate-50 flex items-center justify-center">
@@ -765,11 +841,54 @@ export default function App() {
                     </div>
                   </div>
                   <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col justify-center">
-                    <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-1">Specimen Age</p>
-                    <p className="text-3xl font-black text-slate-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-1">Specimen Age</p>
+                        <p className="text-3xl font-black text-slate-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
+                      </div>
+                      {inspectedPlant.projectedHarvestDate && (
+                        <div className="text-right">
+                          <p className="text-[8px] md:text-[10px] font-black uppercase text-amber-500 mb-1">Countdown</p>
+                          <div className="flex items-center gap-1 text-amber-600 font-black text-xl">
+                            <Target size={18} /> {getDaysRemaining(inspectedPlant.projectedHarvestDate)}d
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-400 mt-1">Planted: {inspectedPlant.plantedDate}</p>
                   </div>
                 </div>
+
+                {inspectedPlant.stage === 'Harvested' && (
+                  <div className="p-6 bg-blue-50/50 rounded-3xl border-2 border-blue-100 animate-in slide-in-from-top-2">
+                    <h4 className="font-black text-lg flex items-center gap-2 text-blue-800 mb-4"><Trophy size={18}/> Record Final Yield</h4>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input 
+                        type="number" 
+                        value={yieldAmount} 
+                        onChange={(e) => setYieldAmount(e.target.value)} 
+                        placeholder="Weight / Count" 
+                        className="flex-1 p-4 bg-white border border-blue-200 rounded-2xl outline-none font-bold text-sm" 
+                      />
+                      <select 
+                        value={yieldUnit} 
+                        onChange={(e) => setYieldUnit(e.target.value)}
+                        className="p-4 bg-white border border-blue-200 rounded-2xl outline-none font-bold text-sm"
+                      >
+                        <option value="g">Grams</option>
+                        <option value="oz">Ounces</option>
+                        <option value="lbs">Pounds</option>
+                        <option value="pcs">Pieces</option>
+                      </select>
+                      <Button onClick={saveYield} className="bg-blue-600 hover:bg-blue-700 shadow-blue-100">Save Yield</Button>
+                    </div>
+                    {inspectedPlant.totalYield && (
+                        <p className="mt-4 text-sm font-black text-blue-700 bg-white inline-block px-4 py-2 rounded-xl border border-blue-100">
+                          Total Harvest: {inspectedPlant.totalYield} {inspectedPlant.yieldUnit}
+                        </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <h4 className="font-black text-lg flex items-center gap-2"><ClipboardList size={18} className="text-emerald-600" /> Care Logs</h4>
