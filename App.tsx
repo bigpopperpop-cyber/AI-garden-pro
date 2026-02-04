@@ -46,7 +46,9 @@ import {
   CheckSquare,
   Square,
   Trophy,
-  Target
+  Target,
+  Pencil,
+  Undo2
 } from 'lucide-react';
 import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GardenNote, Reminder } from './types.ts';
 
@@ -403,6 +405,9 @@ export default function App() {
   const [yieldAmount, setYieldAmount] = useState<string>('');
   const [yieldUnit, setYieldUnit] = useState<string>('g');
 
+  // Note editing state
+  const [editingNoteInfo, setEditingNoteInfo] = useState<{id: string, type: 'plant' | 'system'} | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -484,18 +489,72 @@ export default function App() {
   const addPlantNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGardenId || !selectedPlantId || !newNoteText.trim()) return;
-    const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newNoteText.trim() };
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, notes: [newNote, ...p.notes] } : p)
-    } : g));
+    
+    if (editingNoteInfo && editingNoteInfo.type === 'plant') {
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+        ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { 
+          ...p, 
+          notes: p.notes.map(n => n.id === editingNoteInfo.id ? { ...n, content: newNoteText.trim() } : n) 
+        } : p)
+      } : g));
+      setEditingNoteInfo(null);
+    } else {
+      const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newNoteText.trim() };
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+        ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, notes: [newNote, ...p.notes] } : p)
+      } : g));
+    }
     setNewNoteText('');
+  };
+
+  const deletePlantNote = (noteId: string) => {
+    if (!selectedGardenId || !selectedPlantId || !confirm("Delete this log?")) return;
+    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { 
+        ...p, 
+        notes: p.notes.filter(n => n.id !== noteId) 
+      } : p)
+    } : g));
   };
 
   const addGardenNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGardenId || !newGardenNoteText.trim()) return;
-    const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newGardenNoteText.trim() };
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? { ...g, notes: [newNote, ...g.notes] } : g));
+
+    if (editingNoteInfo && editingNoteInfo.type === 'system') {
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? { 
+        ...g, 
+        notes: g.notes.map(n => n.id === editingNoteInfo.id ? { ...n, content: newGardenNoteText.trim() } : n) 
+      } : g));
+      setEditingNoteInfo(null);
+    } else {
+      const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newGardenNoteText.trim() };
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? { ...g, notes: [newNote, ...g.notes] } : g));
+    }
+    setNewGardenNoteText('');
+  };
+
+  const deleteGardenNote = (noteId: string) => {
+    if (!selectedGardenId || !confirm("Delete this log?")) return;
+    setGardens(prev => prev.map(g => g.id === selectedGardenId ? { 
+      ...g, 
+      notes: g.notes.filter(n => n.id !== noteId) 
+    } : g));
+  };
+
+  const startEditPlantNote = (note: GardenNote) => {
+    setNewNoteText(note.content);
+    setEditingNoteInfo({ id: note.id, type: 'plant' });
+  };
+
+  const startEditGardenNote = (note: GardenNote) => {
+    setNewGardenNoteText(note.content);
+    setEditingNoteInfo({ id: note.id, type: 'system' });
+  };
+
+  const cancelEdit = () => {
+    setEditingNoteInfo(null);
+    setNewNoteText('');
     setNewGardenNoteText('');
   };
 
@@ -688,13 +747,32 @@ export default function App() {
                 <Card className="flex flex-col">
                   <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Activity size={18} className="text-emerald-600" /> System Log</h3>
                   <form onSubmit={addGardenNote} className="mb-4">
-                    <textarea value={newGardenNoteText} onChange={(e) => setNewGardenNoteText(e.target.value)} placeholder="Log pH, nutrients, or water swap..." className="w-full p-3 bg-slate-50 border rounded-xl outline-none text-xs focus:border-emerald-500 min-h-[80px]" />
-                    <Button type="submit" className="w-full mt-2 text-xs py-2"><Send size={14} /><span>Post Log</span></Button>
+                    <textarea 
+                      value={newGardenNoteText} 
+                      onChange={(e) => setNewGardenNoteText(e.target.value)} 
+                      placeholder="Log pH, nutrients, or water swap..." 
+                      className="w-full p-3 bg-slate-50 border rounded-xl outline-none text-xs focus:border-emerald-500 min-h-[80px]" 
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button type="submit" className="flex-1 text-xs py-2">
+                        {editingNoteInfo && editingNoteInfo.type === 'system' ? <Check size={14} /> : <Send size={14} />}
+                        <span>{editingNoteInfo && editingNoteInfo.type === 'system' ? 'Update Log' : 'Post Log'}</span>
+                      </Button>
+                      {editingNoteInfo && editingNoteInfo.type === 'system' && (
+                        <button type="button" onClick={cancelEdit} className="p-2 bg-slate-100 text-slate-400 rounded-lg hover:bg-slate-200"><Undo2 size={16}/></button>
+                      )}
+                    </div>
                   </form>
                   <div className="space-y-3 overflow-y-auto max-h-[300px] pr-1">
                     {selectedGarden.notes.map(n => (
-                      <div key={n.id} className="p-3 border border-slate-100 bg-white rounded-xl text-[11px]">
-                        <p className="text-slate-400 font-black uppercase text-[8px] mb-1">{n.date}</p>
+                      <div key={n.id} className="p-3 border border-slate-100 bg-white rounded-xl text-[11px] group relative">
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="text-slate-400 font-black uppercase text-[8px]">{n.date}</p>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => startEditGardenNote(n)} className="p-1 text-slate-400 hover:text-emerald-600" title="Edit Log"><Pencil size={10}/></button>
+                            <button onClick={() => deleteGardenNote(n.id)} className="p-1 text-slate-400 hover:text-rose-600" title="Delete Log"><Trash2 size={10}/></button>
+                          </div>
+                        </div>
                         <p className="text-slate-600 leading-tight">"{n.content}"</p>
                       </div>
                     ))}
@@ -893,13 +971,31 @@ export default function App() {
                 <div className="space-y-4">
                   <h4 className="font-black text-lg flex items-center gap-2"><ClipboardList size={18} className="text-emerald-600" /> Care Logs</h4>
                   <form onSubmit={addPlantNote} className="flex gap-2">
-                    <input value={newNoteText} onChange={(e) => setNewNoteText(e.target.value)} placeholder="Log pruning, growth spikes, etc..." className="flex-1 p-4 bg-slate-50 border rounded-2xl outline-none text-xs focus:border-emerald-500" />
-                    <Button type="submit"><Send size={16}/></Button>
+                    <input 
+                      value={newNoteText} 
+                      onChange={(e) => setNewNoteText(e.target.value)} 
+                      placeholder="Log pruning, growth spikes, etc..." 
+                      className={`flex-1 p-4 border rounded-2xl outline-none text-xs transition-colors ${editingNoteInfo && editingNoteInfo.type === 'plant' ? 'bg-amber-50 border-amber-200 focus:border-amber-400' : 'bg-slate-50 border-slate-100 focus:border-emerald-500'}`}
+                    />
+                    <div className="flex gap-2">
+                      <Button type="submit">
+                        {editingNoteInfo && editingNoteInfo.type === 'plant' ? <Check size={16}/> : <Send size={16}/>}
+                      </Button>
+                      {editingNoteInfo && editingNoteInfo.type === 'plant' && (
+                        <button type="button" onClick={cancelEdit} className="p-2 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200" title="Cancel Edit"><Undo2 size={16}/></button>
+                      )}
+                    </div>
                   </form>
                   <div className="space-y-3">
                     {inspectedPlant.notes.map(n => (
-                      <div key={n.id} className="p-4 border border-slate-100 bg-white rounded-2xl text-xs">
-                        <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">{n.date}</p>
+                      <div key={n.id} className="p-4 border border-slate-100 bg-white rounded-2xl text-xs group relative">
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-[8px] font-black text-emerald-600 uppercase">{n.date}</p>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => startEditPlantNote(n)} className="p-1 text-slate-400 hover:text-emerald-600" title="Edit entry"><Pencil size={12}/></button>
+                            <button onClick={() => deletePlantNote(n.id)} className="p-1 text-slate-400 hover:text-rose-600" title="Delete entry"><Trash2 size={12}/></button>
+                          </div>
+                        </div>
                         <p className="text-slate-600 leading-relaxed italic">"{n.content}"</p>
                       </div>
                     ))}
