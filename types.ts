@@ -18,6 +18,7 @@ export interface GardenNote {
   id: string;
   date: string;
   content: string;
+  image?: string; // Base64 compressed string
 }
 
 export interface Reminder {

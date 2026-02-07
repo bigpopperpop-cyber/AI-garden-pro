@@ -225,7 +225,7 @@ const CalendarView = ({ reminders, onAddReminder, onToggleReminder, onDeleteRemi
               </div>
             ))}
             {reminders.filter((r: Reminder) => !r.completed).length === 0 && (
-              <p className="text-center py-12 text-slate-300 italic text-xs">No pending tasks.</p>
+              <p className="text-center py-12 text-slate-300 italic text-sm">No pending tasks.</p>
             )}
           </div>
         </Card>
@@ -361,6 +361,7 @@ const DashboardView = ({ gardens, reminders, onToggleReminder, setView, onGarden
                   <span className="text-[7px] md:text-[8px] text-slate-500 whitespace-nowrap">{note.date.split(',')[0]}</span>
                 </div>
                 <p className="text-[9px] md:text-[10px] text-slate-300 italic line-clamp-2 leading-relaxed">"{note.content}"</p>
+                {note.image && <img src={note.image} className="mt-2 w-full h-24 object-cover rounded-lg border border-white/10" alt="Log entry" />}
               </div>
             ))}
             {latestActivity.length === 0 && <p className="text-slate-500 text-center py-6 text-[10px] italic">No activity yet.</p>}
@@ -402,6 +403,7 @@ export default function App() {
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
   const [newGardenNoteText, setNewGardenNoteText] = useState('');
+  const [systemLogImage, setSystemLogImage] = useState<string | null>(null);
   const [yieldAmount, setYieldAmount] = useState<string>('');
   const [yieldUnit, setYieldUnit] = useState<string>('g');
 
@@ -409,6 +411,7 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const systemLogCameraRef = useRef<HTMLInputElement>(null);
 
   const selectedGarden = gardens.find(g => g.id === selectedGardenId);
   const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
@@ -523,14 +526,15 @@ export default function App() {
     if (editingNoteInfo && editingNoteInfo.type === 'system') {
       setGardens(prev => prev.map(g => g.id === selectedGardenId ? { 
         ...g, 
-        notes: g.notes.map(n => n.id === editingNoteInfo.id ? { ...n, content: newGardenNoteText.trim() } : n) 
+        notes: g.notes.map(n => n.id === editingNoteInfo.id ? { ...n, content: newGardenNoteText.trim(), image: systemLogImage || n.image } : n) 
       } : g));
       setEditingNoteInfo(null);
     } else {
-      const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newGardenNoteText.trim() };
+      const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newGardenNoteText.trim(), image: systemLogImage || undefined };
       setGardens(prev => prev.map(g => g.id === selectedGardenId ? { ...g, notes: [newNote, ...g.notes] } : g));
     }
     setNewGardenNoteText('');
+    setSystemLogImage(null);
   };
 
   const deleteGardenNote = (noteId: string) => {
@@ -548,6 +552,7 @@ export default function App() {
 
   const startEditGardenNote = (note: GardenNote) => {
     setNewGardenNoteText(note.content);
+    setSystemLogImage(note.image || null);
     setEditingNoteInfo({ id: note.id, type: 'system' });
   };
 
@@ -555,6 +560,7 @@ export default function App() {
     setEditingNoteInfo(null);
     setNewNoteText('');
     setNewGardenNoteText('');
+    setSystemLogImage(null);
   };
 
   const updatePlantStage = (stage: LifecycleStage) => {
@@ -591,6 +597,14 @@ export default function App() {
     }
   };
 
+  const handleSystemLogPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const compressed = await compressImage(file);
+      setSystemLogImage(compressed);
+    }
+  };
+
   const deletePlant = (plantId: string) => {
     if (!selectedGardenId || !confirm("Delete specimen?")) return;
     setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
@@ -622,6 +636,7 @@ export default function App() {
       }} accept=".json" className="hidden" />
 
       <input type="file" ref={cameraInputRef} onChange={handleCapturePhoto} accept="image/*" capture="environment" className="hidden" />
+      <input type="file" ref={systemLogCameraRef} onChange={handleSystemLogPhoto} accept="image/*" capture="environment" className="hidden" />
 
       {/* Sidebar (Desktop) */}
       <nav className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col p-6 space-y-8 z-50">
@@ -759,7 +774,16 @@ export default function App() {
                       placeholder="pH, water swap, etc..." 
                       className={`w-full p-3 border rounded-xl outline-none text-xs transition-colors focus:border-emerald-500 min-h-[80px] ${editingNoteInfo && editingNoteInfo.type === 'system' ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`} 
                     />
+                    
+                    {systemLogImage && (
+                      <div className="mt-2 relative inline-block">
+                        <img src={systemLogImage} className="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Preview" />
+                        <button type="button" onClick={() => setSystemLogImage(null)} className="absolute -top-1 -right-1 bg-rose-500 text-white p-0.5 rounded-full shadow-md"><X size={10}/></button>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 mt-2">
+                      <button type="button" onClick={() => systemLogCameraRef.current?.click()} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 active:scale-95 transition-all"><Camera size={18}/></button>
                       <Button type="submit" className="flex-1 text-[10px] md:text-xs py-2">
                         {editingNoteInfo && editingNoteInfo.type === 'system' ? <Check size={14} /> : <Send size={14} />}
                         <span>{editingNoteInfo && editingNoteInfo.type === 'system' ? 'Update' : 'Post'}</span>
@@ -769,7 +793,7 @@ export default function App() {
                       )}
                     </div>
                   </form>
-                  <div className="space-y-2 overflow-y-auto max-h-[250px] no-scrollbar md:custom-scrollbar pr-1">
+                  <div className="space-y-2 overflow-y-auto max-h-[300px] no-scrollbar md:custom-scrollbar pr-1">
                     {selectedGarden.notes.map(n => (
                       <div key={n.id} className="p-3 border border-slate-100 bg-white rounded-xl text-[10px] md:text-[11px] group relative">
                         <div className="flex justify-between items-start mb-1 gap-2">
@@ -780,8 +804,10 @@ export default function App() {
                           </div>
                         </div>
                         <p className="text-slate-600 leading-tight">"{n.content}"</p>
+                        {n.image && <img src={n.image} className="mt-2 w-full h-24 object-cover rounded-lg border" alt="Log" />}
                       </div>
                     ))}
+                    {selectedGarden.notes.length === 0 && <p className="text-center py-10 text-slate-200 italic font-bold uppercase text-[9px]">Empty Log</p>}
                   </div>
                 </Card>
               </div>
@@ -1026,7 +1052,7 @@ export default function App() {
 
       {isImportModalOpen && pendingImportData && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-           <div className="bg-white rounded-[2rem] w-full max-w-sm p-6 md:p-8 shadow-2xl text-center">
+           <div className="bg-white rounded-[2rem] w-full max-sm p-6 md:p-8 shadow-2xl text-center">
               <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><LinkIcon size={28} /></div>
               <h3 className="text-xl font-black mb-3">Import shared data?</h3>
               <p className="text-[10px] md:text-xs text-slate-500 mb-6 leading-relaxed">We found {pendingImportData.length} systems in the link. Do you want to merge them into your workspace?</p>
