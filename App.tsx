@@ -401,6 +401,7 @@ export default function App() {
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
   const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
+  const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
   const [newGardenNoteText, setNewGardenNoteText] = useState('');
   const [systemLogImage, setSystemLogImage] = useState<string | null>(null);
@@ -472,20 +473,29 @@ export default function App() {
     const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
     const projectedHarvestDate = (f.elements.namedItem('pharvest') as HTMLInputElement).value;
     
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: [...g.plants, { 
-        id: Date.now().toString(), 
-        name, 
-        variety,
-        plantedDate, 
-        projectedHarvestDate,
-        stage: 'Germination', 
-        harvests: [], 
-        notes: [], 
-        phasePhotos: {} 
-      }]
-    } : g));
+    if (editingPlant) {
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+        ...g, plants: g.plants.map(p => p.id === editingPlant.id ? {
+          ...p, name, variety, plantedDate, projectedHarvestDate
+        } : p)
+      } : g));
+    } else {
+      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
+        ...g, plants: [...g.plants, { 
+          id: Date.now().toString(), 
+          name, 
+          variety,
+          plantedDate, 
+          projectedHarvestDate,
+          stage: 'Germination', 
+          harvests: [], 
+          notes: [], 
+          phasePhotos: {} 
+        }]
+      } : g));
+    }
     setIsPlantModalOpen(false);
+    setEditingPlant(null);
   };
 
   const addPlantNote = (e: React.FormEvent) => {
@@ -737,7 +747,10 @@ export default function App() {
                                 <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase truncate opacity-70">{p.variety || 'Unknown'}</p>
                               </div>
                             </div>
-                            <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm active:scale-95"><ExternalLink size={12} /></button>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => { setEditingPlant(p); setIsPlantModalOpen(true); }} className="p-1.5 text-slate-300 hover:text-emerald-600"><Pencil size={14}/></button>
+                              <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm active:scale-95"><ExternalLink size={12} /></button>
+                            </div>
                           </div>
                           <div className="flex flex-wrap justify-between items-center mt-auto gap-2">
                             <div className="px-2 py-0.5 bg-white rounded-md border text-[7px] md:text-[8px] font-black uppercase text-emerald-600">{p.stage}</div>
@@ -901,28 +914,28 @@ export default function App() {
       {isPlantModalOpen && (
         <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl max-h-[95vh] overflow-y-auto landscape:max-h-[90vh]">
-              <h3 className="text-xl md:text-2xl font-black mb-6">Add Specimen</h3>
+              <h3 className="text-xl md:text-2xl font-black mb-6">{editingPlant ? 'Edit Specimen' : 'Add Specimen'}</h3>
               <form onSubmit={savePlant} className="space-y-4">
                  <div className="space-y-1">
                    <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Specimen Name</p>
-                   <input name="pname" placeholder="e.g. Tomato #1" required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
+                   <input name="pname" defaultValue={editingPlant?.name} placeholder="e.g. Tomato #1" required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
                  </div>
                  <div className="space-y-1">
                    <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Variety</p>
-                   <input name="pvariety" placeholder="e.g. Beefsteak" className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
+                   <input name="pvariety" defaultValue={editingPlant?.variety} placeholder="e.g. Beefsteak" className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
                  </div>
                  <div className="grid grid-cols-2 gap-3 md:gap-4">
                    <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Planted</p>
-                     <input name="pdate" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-xs md:text-sm" />
+                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Planted Date</p>
+                     <input name="pdate" type="date" defaultValue={editingPlant?.plantedDate || new Date().toISOString().split('T')[0]} required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-xs md:text-sm" />
                    </div>
                    <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Harvest</p>
-                     <input name="pharvest" type="date" className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-xs md:text-sm" />
+                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Harvest Date</p>
+                     <input name="pharvest" type="date" defaultValue={editingPlant?.projectedHarvestDate} className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-xs md:text-sm" />
                    </div>
                  </div>
-                 <Button type="submit" className="w-full py-4 mt-2">Save Specimen</Button>
-                 <button type="button" onClick={() => setIsPlantModalOpen(false)} className="w-full text-slate-400 font-bold py-2 text-xs">Cancel</button>
+                 <Button type="submit" className="w-full py-4 mt-2">{editingPlant ? 'Update Specimen' : 'Save Specimen'}</Button>
+                 <button type="button" onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="w-full text-slate-400 font-bold py-2 text-xs">Cancel</button>
               </form>
            </div>
         </div>
@@ -944,7 +957,8 @@ export default function App() {
                     <img src={inspectedPlant.phasePhotos[inspectedPlant.stage]} className="w-full h-full object-cover" alt={inspectedPlant.name} />
                   ) : (
                     <div className="flex flex-col items-center text-slate-300">
-                      <ImageIcon size={32} md:size={48} className="mb-2 opacity-30" />
+                      {/* Fixed: Removed invalid 'md:size' prop and replaced with responsive Tailwind classes */}
+                      <ImageIcon size={32} className="mb-2 opacity-30 md:w-12 md:h-12" />
                       <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest">Capture {inspectedPlant.stage} Photo</p>
                     </div>
                   )}
