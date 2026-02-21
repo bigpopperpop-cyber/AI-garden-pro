@@ -1,63 +1,65 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  LayoutDashboard, 
   Sprout, 
+  Calendar, 
+  LayoutDashboard, 
   Settings, 
   Plus, 
-  Bell, 
-  X, 
-  Leaf,
-  Calendar as CalendarIcon,
-  Trash2,
-  Clock,
-  ChevronRight,
-  ChevronLeft,
-  Sun,
-  Home,
-  ExternalLink,
-  Download,
-  CheckCircle2,
-  TrendingUp,
-  MessageSquare,
-  Send,
-  Activity,
-  Printer,
-  FileSpreadsheet,
-  Heart,
-  ShieldCheck,
-  Repeat,
-  Upload,
-  Laptop,
-  BarChart3,
-  History,
-  ClipboardList,
-  Share2,
-  Link as LinkIcon,
-  Copy,
-  Check,
-  Globe,
-  Coffee,
-  HelpCircle,
-  RefreshCcw,
-  Save,
-  FileUp,
-  Camera,
+  ChevronRight, 
+  Search, 
+  Filter, 
+  MoreVertical, 
+  Droplets, 
+  Thermometer, 
+  Sun, 
+  Clock, 
+  AlertCircle, 
+  CheckCircle2, 
+  ChevronLeft, 
+  Camera, 
   Image as ImageIcon,
-  CheckSquare,
-  Square,
-  Trophy,
-  Target,
+  Notebook,
+  History,
+  Trash2,
   Pencil,
-  Undo2
+  Save,
+  X,
+  Target,
+  Trophy,
+  ExternalLink,
+  Bell,
+  Activity,
+  ArrowRight,
+  User,
+  LogOut,
+  Moon,
+  Database,
+  Share2,
+  Check,
+  Undo2,
+  Send,
+  Link as LinkIcon
 } from 'lucide-react';
-import { ViewState, Garden, Notification, GardenType, Plant, LifecycleStage, GardenNote, Reminder } from './types.ts';
+import { 
+  Garden, 
+  Plant, 
+  LifecycleStage, 
+  ViewState, 
+  GardenNote, 
+  Reminder, 
+  Notification, 
+  UserProfile 
+} from './types';
 
-// --- Shared UI Components ---
+// --- UI Components ---
 
-const Card = ({ children, className = "", onClick }: any) => (
+// Fix: Added onClick prop to Card component to handle click events used in various views
+const Card = ({ children, className = "", onClick }: { children: React.ReactNode, className?: string, onClick?: () => void }) => (
   <div 
     onClick={onClick}
-    className={`bg-white rounded-[1.25rem] md:rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-100 ${className}`}
+    className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${className}`}
   >
     {children}
   </div>
@@ -65,308 +67,39 @@ const Card = ({ children, className = "", onClick }: any) => (
 
 const Button = ({ children, onClick, variant = 'primary', className = "", type = "button", disabled = false }: any) => {
   const variants: any = {
-    primary: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-100 disabled:opacity-50",
-    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
-    outline: "border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50",
-    danger: "bg-rose-50 text-rose-600 hover:bg-rose-100",
+    primary: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100",
+    secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 shadow-sm",
+    danger: "bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100",
+    ghost: "bg-transparent text-slate-500 hover:bg-slate-100",
     coffee: "bg-[#6F4E37] text-white hover:bg-[#5D4037] shadow-md shadow-amber-100",
   };
   return (
     <button 
-      type={type} 
-      onClick={onClick} 
-      disabled={disabled} 
-      className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 text-sm md:text-base ${variants[variant]} ${className}`}
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 ${variants[variant]} ${className}`}
     >
       {children}
     </button>
   );
 };
 
-// --- Helper Functions ---
-const calculateAge = (date: string) => {
-  const start = new Date(date);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  return diff < 0 ? 0 : diff;
-};
-
-const getDaysRemaining = (targetDate?: string) => {
-  if (!targetDate) return null;
-  const target = new Date(targetDate);
-  const now = new Date();
-  const diff = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  return diff;
-};
-
-const compressImage = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 500;
-        const MAX_HEIGHT = 500;
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
-      };
-    };
-    reader.onerror = (error) => reject(error);
-  });
-};
-
-// --- Calendar View ---
-
-const CalendarView = ({ reminders, onAddReminder, onToggleReminder, onDeleteReminder }: any) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedDateStr, setSelectedDateStr] = useState('');
-
-  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const numDays = daysInMonth(year, month);
-  const firstDay = firstDayOfMonth(year, month);
-
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-
-  const days = [];
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= numDays; i++) days.push(i);
-
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-  const getRemindersForDay = (day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return reminders.filter((r: Reminder) => r.date === dateStr);
-  };
-
-  const handleDayClick = (day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    setSelectedDateStr(dateStr);
-    setIsAddModalOpen(true);
-  };
-
+const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode }) => {
+  if (!isOpen) return null;
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in pb-10">
-      <Card className="p-3 md:p-6">
-        <div className="flex items-center justify-between mb-4 md:mb-6">
-          <h2 className="text-lg md:text-2xl font-black text-slate-800">{monthNames[month]} {year}</h2>
-          <div className="flex gap-1 md:gap-2">
-            <button onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"><ChevronLeft size={20}/></button>
-            <button onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"><ChevronRight size={20}/></button>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-fade-in overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-white sticky top-0 z-10">
+          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <X size={20} className="text-slate-400" />
+          </button>
         </div>
-
-        <div className="grid grid-cols-7 gap-1">
-          {["S", "M", "T", "W", "T", "F", "S"].map(d => (
-            <div key={d} className="text-center text-[9px] md:text-[10px] font-black uppercase text-slate-400 py-1 md:py-2">{d}</div>
-          ))}
-          {days.map((day, idx) => {
-            if (day === null) return <div key={`empty-${idx}`} className="aspect-square" />;
-            const dayReminders = getRemindersForDay(day);
-            const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
-            
-            return (
-              <button 
-                key={day} 
-                onClick={() => handleDayClick(day)}
-                className={`aspect-square p-1 rounded-lg md:rounded-2xl border transition-all text-left flex flex-col group relative ${isToday ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-50 bg-slate-50/50 hover:bg-white hover:border-emerald-200'}`}
-              >
-                <span className={`text-[10px] md:text-xs font-black ${isToday ? 'text-emerald-600' : 'text-slate-600'}`}>{day}</span>
-                <div className="mt-auto flex flex-wrap gap-0.5">
-                  {dayReminders.slice(0, 3).map((r: Reminder) => (
-                    <div key={r.id} className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${r.completed ? 'bg-slate-300' : 'bg-emerald-500'}`} />
-                  ))}
-                  {dayReminders.length > 3 && <span className="text-[6px] md:text-[8px] font-bold text-slate-400">+{dayReminders.length - 3}</span>}
-                </div>
-              </button>
-            );
-          })}
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-grow">
+          {children}
         </div>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <Card className="flex flex-col h-[300px] md:h-[400px]">
-          <h3 className="text-sm md:text-lg font-black mb-3 md:mb-4 flex items-center gap-2"><Bell className="text-emerald-600" size={18} /> Pending</h3>
-          <div className="flex-1 overflow-y-auto pr-1 space-y-2 no-scrollbar md:custom-scrollbar">
-            {reminders.sort((a: Reminder, b: Reminder) => a.date.localeCompare(b.date)).filter((r: Reminder) => !r.completed).map((r: Reminder) => (
-              <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <button onClick={() => onToggleReminder(r.id)} className="text-slate-300 hover:text-emerald-500 shrink-0"><Square size={18} /></button>
-                  <div className="min-w-0">
-                    <p className="text-xs md:text-sm font-bold text-slate-800 truncate">{r.title}</p>
-                    <p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400">{r.date}</p>
-                  </div>
-                </div>
-                <button onClick={() => onDeleteReminder(r.id)} className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-rose-500 transition-opacity"><Trash2 size={14} /></button>
-              </div>
-            ))}
-            {reminders.filter((r: Reminder) => !r.completed).length === 0 && (
-              <p className="text-center py-12 text-slate-300 italic text-sm">No pending tasks.</p>
-            )}
-          </div>
-        </Card>
-
-        <Card className="flex flex-col h-[300px] md:h-[400px]">
-          <h3 className="text-sm md:text-lg font-black mb-3 md:mb-4 flex items-center gap-2 text-slate-400"><CheckCircle2 size={18} /> History</h3>
-          <div className="flex-1 overflow-y-auto pr-1 space-y-2 no-scrollbar md:custom-scrollbar">
-            {reminders.filter((r: Reminder) => r.completed).sort((a: Reminder, b: Reminder) => b.date.localeCompare(a.date)).slice(0, 10).map((r: Reminder) => (
-              <div key={r.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-50 opacity-60">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <button onClick={() => onToggleReminder(r.id)} className="text-emerald-500 shrink-0"><CheckSquare size={18} /></button>
-                  <div className="min-w-0">
-                    <p className="text-xs md:text-sm font-bold text-slate-800 line-through truncate">{r.title}</p>
-                    <p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400">{r.date}</p>
-                  </div>
-                </div>
-                <button onClick={() => onDeleteReminder(r.id)} className="p-1 text-slate-200 hover:text-rose-500 transition-colors"><Trash2 size={14} /></button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] w-full max-w-md p-6 md:p-8 shadow-2xl">
-            <h3 className="text-lg md:text-xl font-black mb-6">Task for {selectedDateStr}</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const f = e.currentTarget;
-              const title = (f.elements.namedItem('rtitle') as HTMLInputElement).value;
-              onAddReminder({
-                id: Date.now().toString(),
-                title,
-                date: selectedDateStr,
-                completed: false,
-                priority: 'medium'
-              });
-              setIsAddModalOpen(false);
-            }} className="space-y-4">
-              <input name="rtitle" autoFocus placeholder="Task (e.g. Flush system)" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
-              <Button type="submit" className="w-full py-4">Save Task</Button>
-              <button type="button" onClick={() => setIsAddModalOpen(false)} className="w-full text-slate-400 font-bold py-2 text-sm">Cancel</button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// --- Dashboard View ---
-
-const DashboardView = ({ gardens, reminders, onToggleReminder, setView, onGardenSelect, onShareApp }: any) => {
-  const allPlants = gardens.flatMap((g: Garden) => g.plants);
-  const totalPlants = allPlants.length;
-  const pendingReminders = reminders.filter((r: Reminder) => !r.completed);
-  
-  const latestActivity = gardens
-    .flatMap((g: Garden) => [
-      ...g.plants.flatMap((p: Plant) => p.notes.map(n => ({ ...n, owner: p.name, type: 'Plant' }))),
-      ...g.notes.map(n => ({ ...n, owner: g.name, type: 'System' }))
-    ])
-    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
-
-  return (
-    <div className="space-y-4 md:space-y-8 animate-fade-in pb-10">
-      <div className="bg-emerald-600 p-5 md:p-10 rounded-[1.25rem] md:rounded-[2.5rem] text-white shadow-xl shadow-emerald-100/50 relative overflow-hidden">
-        <Leaf className="absolute -bottom-6 -right-6 w-20 h-20 md:w-32 md:h-32 text-emerald-500/20 rotate-12 hidden xs:block" />
-        <div className="relative z-10">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl md:text-4xl font-black mb-1 tracking-tight">Growth Dashboard</h2>
-              <p className="text-emerald-100/80 font-medium italic text-xs md:text-lg">Your local oasis is looking good.</p>
-            </div>
-            <button onClick={onShareApp} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl border border-white/10 flex items-center gap-1.5 md:gap-2 text-[8px] md:text-[10px] font-black uppercase tracking-widest"><Globe size={14} /><span className="hidden xs:inline">Share</span></button>
-          </div>
-          <div className="flex gap-2 md:gap-4 mt-5 md:mt-8">
-            <div className="bg-white/10 backdrop-blur-md px-3 md:px-4 py-2 rounded-xl shrink-0"><p className="text-[7px] md:text-[8px] font-black uppercase text-emerald-200">Gardens</p><p className="text-base md:text-xl font-black">{gardens.length}</p></div>
-            <div className="bg-white/10 backdrop-blur-md px-3 md:px-4 py-2 rounded-xl shrink-0"><p className="text-[7px] md:text-[8px] font-black uppercase text-emerald-200">Plants</p><p className="text-base md:text-xl font-black">{totalPlants}</p></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-        <div className="md:col-span-2 space-y-4 md:space-y-6">
-          <Card className="p-4 md:p-6">
-            <div className="flex justify-between items-center mb-4 md:mb-6">
-              <h3 className="text-sm md:text-lg font-black text-slate-800 flex items-center gap-2"><CheckSquare className="text-emerald-600" size={18} /> Today's Tasks</h3>
-              <button onClick={() => setView('calendar')} className="text-[9px] md:text-xs font-black uppercase text-emerald-600 hover:underline">Full Schedule</button>
-            </div>
-            <div className="space-y-2">
-              {pendingReminders.slice(0, 4).map((r: Reminder) => (
-                <div key={r.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <button onClick={() => onToggleReminder(r.id)} className="text-slate-300 hover:text-emerald-500 shrink-0"><Square size={18} /></button>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-800 truncate">{r.title}</p>
-                    <p className="text-[8px] md:text-[10px] font-black uppercase text-slate-400">{r.date}</p>
-                  </div>
-                </div>
-              ))}
-              {pendingReminders.length === 0 && <p className="text-center py-6 md:py-10 text-slate-300 italic text-xs">All clear!</p>}
-            </div>
-          </Card>
-
-          <Card className="p-4 md:p-6">
-            <div className="flex justify-between items-center mb-4 md:mb-6">
-              <h3 className="text-sm md:text-lg font-black text-slate-800">My Systems</h3>
-              <button onClick={() => setView('gardens')} className="text-emerald-600 text-[9px] md:text-xs font-black uppercase hover:underline">Manage All</button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {gardens.slice(0, 4).map((g: Garden) => (
-                <button key={g.id} onClick={() => onGardenSelect(g.id)} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-emerald-200 transition-all text-left outline-none group">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>{g.type === 'Indoor' ? <Home size={16} /> : <Sun size={16} />}</div>
-                    <div className="min-w-0"><p className="font-bold text-slate-800 text-xs md:text-sm truncate">{g.name}</p><p className="text-[8px] text-slate-400 font-black uppercase">{g.plants?.length || 0} Plants</p></div>
-                  </div>
-                  <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
-                </button>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        <Card className="bg-slate-900 text-white h-fit p-4 md:p-6">
-          <h3 className="text-xs font-black uppercase tracking-tight mb-4 md:mb-6 flex items-center gap-2"><History size={16} className="text-emerald-400" /> Recent Logs</h3>
-          <div className="space-y-3">
-            {latestActivity.map((note: any) => (
-              <div key={note.id} className="p-3 bg-white/5 rounded-xl border border-white/10">
-                <div className="flex justify-between items-start mb-1 gap-2">
-                  <span className="text-[8px] md:text-[9px] font-black text-emerald-400 uppercase truncate">{note.owner}</span>
-                  <span className="text-[7px] md:text-[8px] text-slate-500 whitespace-nowrap">{note.date.split(',')[0]}</span>
-                </div>
-                <p className="text-[9px] md:text-[10px] text-slate-300 italic line-clamp-2 leading-relaxed">"{note.content}"</p>
-                {note.image && <img src={note.image} className="mt-2 w-full h-24 object-cover rounded-lg border border-white/10" alt="Log entry" />}
-              </div>
-            ))}
-            {latestActivity.length === 0 && <p className="text-slate-500 text-center py-6 text-[10px] italic">No activity yet.</p>}
-          </div>
-        </Card>
       </div>
     </div>
   );
@@ -376,708 +109,843 @@ const DashboardView = ({ gardens, reminders, onToggleReminder, setView, onGarden
 
 export default function App() {
   const [view, setView] = useState<ViewState>('dashboard');
-  const [gardens, setGardens] = useState<Garden[]>(() => {
-    try {
-      const saved = localStorage.getItem('hydro_gardens_core');
-      if (saved) return JSON.parse(saved);
-    } catch (e) { console.warn(e); }
-    return [];
-  });
-  const [reminders, setReminders] = useState<Reminder[]>(() => {
-    try {
-      const saved = localStorage.getItem('hydro_reminders');
-      if (saved) return JSON.parse(saved);
-    } catch (e) { console.warn(e); }
-    return [];
-  });
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
-  const [isPlantDetailOpen, setIsPlantDetailOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [pendingImportData, setPendingImportData] = useState<Garden[] | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [gardens, setGardens] = useState<Garden[]>([]);
+  const [profile, setProfile] = useState<UserProfile>({ id: '1', name: 'Grow Master', avatarColor: 'emerald' });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   
+  const [isAddGardenOpen, setIsAddGardenOpen] = useState(false);
+  const [isAddPlantOpen, setIsAddPlantOpen] = useState(false);
   const [selectedGardenId, setSelectedGardenId] = useState<string | null>(null);
-  const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null);
-  const [editingGarden, setEditingGarden] = useState<Garden | null>(null);
-  const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
-  const [newNoteText, setNewNoteText] = useState('');
-  const [newGardenNoteText, setNewGardenNoteText] = useState('');
-  const [systemLogImage, setSystemLogImage] = useState<string | null>(null);
-  const [yieldAmount, setYieldAmount] = useState<string>('');
-  const [yieldUnit, setYieldUnit] = useState<string>('g');
+  const [inspectedPlant, setInspectedPlant] = useState<Plant | null>(null);
+  const [isEditingPlantDate, setIsEditingPlantDate] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  const [editingNoteInfo, setEditingNoteInfo] = useState<{id: string, type: 'plant' | 'system'} | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const systemLogCameraRef = useRef<HTMLInputElement>(null);
-
-  const selectedGarden = gardens.find(g => g.id === selectedGardenId);
-  const inspectedPlant = selectedGarden?.plants.find(p => p.id === selectedPlantId);
-
+  // Load persistence
   useEffect(() => {
-    localStorage.setItem('hydro_gardens_core', JSON.stringify(gardens));
-  }, [gardens]);
-
-  useEffect(() => {
-    localStorage.setItem('hydro_reminders', JSON.stringify(reminders));
-  }, [reminders]);
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedData = urlParams.get('workspace');
-    if (sharedData) {
+    const saved = localStorage.getItem('hydrogrow_data');
+    if (saved) {
       try {
-        const decoded = JSON.parse(decodeURIComponent(atob(sharedData)));
-        if (Array.isArray(decoded)) {
-          setPendingImportData(decoded);
-          setIsImportModalOpen(true);
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      } catch (err) { console.error(err); }
+        const data = JSON.parse(saved);
+        setGardens(data.gardens || []);
+        setReminders(data.reminders || []);
+      } catch (e) { console.error("Data restoration failed", e); }
     }
   }, []);
 
-  const handleAddReminder = (r: Reminder) => setReminders(prev => [...prev, r]);
-  const handleToggleReminder = (id: string) => setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: !r.completed } : r));
-  const handleDeleteReminder = (id: string) => setReminders(prev => prev.filter(r => r.id !== id));
+  useEffect(() => {
+    localStorage.setItem('hydrogrow_data', JSON.stringify({ gardens, reminders }));
+  }, [gardens, reminders]);
 
-  const handleGardenSelect = (id: string) => {
-    setSelectedGardenId(id);
-    setView('gardens');
-  };
+  // Derived data
+  const stats = useMemo(() => {
+    const totalPlants = gardens.reduce((acc, g) => acc + g.plants.length, 0);
+    const activeGardens = gardens.length;
+    const harvests = gardens.flatMap(g => g.plants.flatMap(p => p.harvests));
+    const totalYield = harvests.reduce((acc, h) => acc + h.amount, 0);
+    const upcomingReminders = reminders.filter(r => !r.completed).length;
+    
+    return { totalPlants, activeGardens, totalYield, upcomingReminders };
+  }, [gardens, reminders]);
 
-  const saveGarden = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddGarden = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const f = e.currentTarget;
-    const name = (f.elements.namedItem('gname') as HTMLInputElement).value;
-    const type = (f.elements.namedItem('gtype') as HTMLSelectElement).value as GardenType;
-    const startedDate = (f.elements.namedItem('gdate') as HTMLInputElement).value;
-    if (editingGarden) {
-      setGardens(prev => prev.map(g => g.id === editingGarden.id ? { ...g, name, type, startedDate } : g));
-    } else {
-      setGardens(prev => [...prev, { id: Date.now().toString(), name, type, startedDate, plants: [], notes: [] }]);
-    }
-    setIsModalOpen(false);
-    setEditingGarden(null);
+    const formData = new FormData(e.currentTarget);
+    const newGarden: Garden = {
+      id: Date.now().toString(),
+      name: formData.get('name') as string,
+      type: formData.get('type') as any,
+      startedDate: new Date().toISOString(),
+      plants: [],
+      notes: []
+    };
+    setGardens([...gardens, newGarden]);
+    setIsAddGardenOpen(false);
   };
 
-  const savePlant = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddPlant = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedGardenId) return;
-    const f = e.currentTarget;
-    const name = (f.elements.namedItem('pname') as HTMLInputElement).value;
-    const variety = (f.elements.namedItem('pvariety') as HTMLInputElement).value;
-    const plantedDate = (f.elements.namedItem('pdate') as HTMLInputElement).value;
-    const projectedHarvestDate = (f.elements.namedItem('pharvest') as HTMLInputElement).value;
     
-    if (editingPlant) {
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-        ...g, plants: g.plants.map(p => p.id === editingPlant.id ? {
-          ...p, name, variety, plantedDate, projectedHarvestDate
-        } : p)
-      } : g));
-    } else {
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-        ...g, plants: [...g.plants, { 
-          id: Date.now().toString(), 
-          name, 
-          variety,
-          plantedDate, 
-          projectedHarvestDate,
-          stage: 'Germination', 
-          harvests: [], 
-          notes: [], 
-          phasePhotos: {} 
-        }]
-      } : g));
-    }
-    setIsPlantModalOpen(false);
-    setEditingPlant(null);
+    const formData = new FormData(e.currentTarget);
+    const newPlant: Plant = {
+      id: Date.now().toString(),
+      name: formData.get('name') as string,
+      variety: formData.get('variety') as string,
+      plantedDate: formData.get('plantedDate') as string || new Date().toISOString(),
+      stage: 'Germination',
+      harvests: [],
+      notes: [],
+      phasePhotos: {}
+    };
+
+    setGardens(gardens.map(g => 
+      g.id === selectedGardenId 
+        ? { ...g, plants: [...g.plants, newPlant] }
+        : g
+    ));
+    setIsAddPlantOpen(false);
   };
 
-  const addPlantNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedGardenId || !selectedPlantId || !newNoteText.trim()) return;
+  const handleUpdatePlant = (plantId: string, updates: Partial<Plant>) => {
+    setGardens(prev => prev.map(g => ({
+      ...g,
+      plants: g.plants.map(p => p.id === plantId ? { ...p, ...updates } : p)
+    })));
     
-    if (editingNoteInfo && editingNoteInfo.type === 'plant') {
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-        ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { 
-          ...p, 
-          notes: p.notes.map(n => n.id === editingNoteInfo.id ? { ...n, content: newNoteText.trim() } : n) 
-        } : p)
-      } : g));
-      setEditingNoteInfo(null);
-    } else {
-      const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newNoteText.trim() };
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-        ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, notes: [newNote, ...p.notes] } : p)
-      } : g));
-    }
-    setNewNoteText('');
-  };
-
-  const deletePlantNote = (noteId: string) => {
-    if (!selectedGardenId || !selectedPlantId || !confirm("Delete this log?")) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { 
-        ...p, 
-        notes: p.notes.filter(n => n.id !== noteId) 
-      } : p)
-    } : g));
-  };
-
-  const addGardenNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedGardenId || !newGardenNoteText.trim()) return;
-
-    if (editingNoteInfo && editingNoteInfo.type === 'system') {
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? { 
-        ...g, 
-        notes: g.notes.map(n => n.id === editingNoteInfo.id ? { ...n, content: newGardenNoteText.trim(), image: systemLogImage || n.image } : n) 
-      } : g));
-      setEditingNoteInfo(null);
-    } else {
-      const newNote = { id: Date.now().toString(), date: new Date().toLocaleString(), content: newGardenNoteText.trim(), image: systemLogImage || undefined };
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? { ...g, notes: [newNote, ...g.notes] } : g));
-    }
-    setNewGardenNoteText('');
-    setSystemLogImage(null);
-  };
-
-  const deleteGardenNote = (noteId: string) => {
-    if (!selectedGardenId || !confirm("Delete this log?")) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? { 
-      ...g, 
-      notes: g.notes.filter(n => n.id !== noteId) 
-    } : g));
-  };
-
-  const startEditPlantNote = (note: GardenNote) => {
-    setNewNoteText(note.content);
-    setEditingNoteInfo({ id: note.id, type: 'plant' });
-  };
-
-  const startEditGardenNote = (note: GardenNote) => {
-    setNewGardenNoteText(note.content);
-    setSystemLogImage(note.image || null);
-    setEditingNoteInfo({ id: note.id, type: 'system' });
-  };
-
-  const cancelEdit = () => {
-    setEditingNoteInfo(null);
-    setNewNoteText('');
-    setNewGardenNoteText('');
-    setSystemLogImage(null);
-  };
-
-  const updatePlantStage = (stage: LifecycleStage) => {
-    if (!selectedGardenId || !selectedPlantId) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { ...p, stage } : p)
-    } : g));
-  };
-
-  const saveYield = () => {
-    if (!selectedGardenId || !selectedPlantId || !yieldAmount) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: g.plants.map(p => p.id === selectedPlantId ? { 
-        ...p, 
-        totalYield: parseFloat(yieldAmount), 
-        yieldUnit: yieldUnit 
-      } : p)
-    } : g));
-    setYieldAmount('');
-    alert("Yield record saved!");
-  };
-
-  const handleCapturePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && selectedGardenId && selectedPlantId && inspectedPlant) {
-      const compressed = await compressImage(file);
-      const stage = inspectedPlant.stage;
-      setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-        ...g, plants: g.plants.map(p => p.id === selectedPlantId ? {
-          ...p,
-          phasePhotos: { ...p.phasePhotos, [stage]: compressed }
-        } : p)
-      } : g));
+    if (inspectedPlant && inspectedPlant.id === plantId) {
+      setInspectedPlant({ ...inspectedPlant, ...updates });
     }
   };
 
-  const handleSystemLogPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const compressed = await compressImage(file);
-      setSystemLogImage(compressed);
-    }
+  const handleSavePlantDate = (newDate: string) => {
+    if (!inspectedPlant) return;
+    handleUpdatePlant(inspectedPlant.id, { plantedDate: newDate });
+    setIsEditingPlantDate(false);
   };
 
   const deletePlant = (plantId: string) => {
-    if (!selectedGardenId || !confirm("Delete specimen?")) return;
-    setGardens(prev => prev.map(g => g.id === selectedGardenId ? {
-      ...g, plants: g.plants.filter(p => p.id !== plantId)
-    } : g));
-    setIsPlantDetailOpen(false);
+    if (!confirm("Are you sure you want to delete this specimen? All data will be lost.")) return;
+    setGardens(prev => prev.map(g => ({
+      ...g,
+      plants: g.plants.filter(p => p.id !== plantId)
+    })));
+    setInspectedPlant(null);
   };
 
-  const handleResetApp = () => {
-    if (confirm("This will delete ALL local data. Are you sure?")) {
-      setGardens([]);
-      setReminders([]);
-      localStorage.clear();
-      setView('dashboard');
-    }
-  };
+  // --- Views ---
 
-  return (
-    <div className="flex flex-col md:flex-row h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans pb-safe">
-      <input type="file" ref={fileInputRef} onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            try { setGardens(JSON.parse(ev.target?.result as string)); } catch (err) { alert("Import failed."); }
-          };
-          reader.readAsText(file);
-        }
-      }} accept=".json" className="hidden" />
-
-      <input type="file" ref={cameraInputRef} onChange={handleCapturePhoto} accept="image/*" capture="environment" className="hidden" />
-      <input type="file" ref={systemLogCameraRef} onChange={handleSystemLogPhoto} accept="image/*" capture="environment" className="hidden" />
-
-      {/* Sidebar (Desktop) */}
-      <nav className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col p-6 space-y-8 z-50">
-        <div className="flex items-center space-x-3 px-2">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"><Sprout size={24} /></div>
-          <span className="text-xl font-black text-emerald-600 tracking-tight">HydroGrow</span>
+  const DashboardView = () => (
+    <div className="space-y-6 animate-fade-in pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Garden Overview</h1>
+          <p className="text-slate-400 text-sm font-medium">Welcome back, {profile.name}</p>
         </div>
-        <div className="flex-1 space-y-2">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'gardens', icon: Leaf, label: 'Gardens' },
-            { id: 'calendar', icon: CalendarIcon, label: 'Calendar' },
-            { id: 'settings', icon: Settings, label: 'Settings' }
-          ].map(item => (
-            <button key={item.id} onClick={() => { setView(item.id as ViewState); setSelectedGardenId(null); }} className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all ${view === item.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-              <item.icon size={20} />
-              <span className="font-bold">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* Bottom Nav (Mobile) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 z-[100] flex justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-[calc(12px+env(safe-area-inset-bottom))]">
-        {[
-          { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-          { id: 'gardens', icon: Leaf, label: 'Gardens' },
-          { id: 'calendar', icon: CalendarIcon, label: 'Tasks' },
-          { id: 'settings', icon: Settings, label: 'Setup' }
-        ].map(item => (
-          <button key={item.id} onClick={() => { setView(item.id as ViewState); setSelectedGardenId(null); }} className={`flex flex-col items-center space-y-1 transition-all ${view === item.id ? 'text-emerald-600 scale-105' : 'text-slate-400 opacity-60'}`}>
-            <item.icon size={20} strokeWidth={view === item.id ? 2.5 : 2} />
-            <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
+        <div className="flex gap-2">
+          <button className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm text-slate-500 hover:text-emerald-600 transition-colors relative">
+            <Bell size={20} />
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
           </button>
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold border border-emerald-200">
+            {profile.name[0]}
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Active Plants', value: stats.totalPlants, icon: Sprout, color: 'emerald' },
+          { label: 'Gardens', value: stats.activeGardens, icon: LayoutDashboard, color: 'blue' },
+          { label: 'Reminders', value: stats.upcomingReminders, icon: Clock, color: 'amber' },
+          { label: 'Total Yield', value: `${stats.totalYield}g`, icon: Trophy, color: 'purple' },
+        ].map((stat, i) => (
+          <Card key={i} className="p-4 border-none shadow-sm bg-white hover:shadow-md transition-shadow cursor-default">
+            <div className={`w-10 h-10 rounded-xl mb-3 flex items-center justify-center bg-${stat.color}-50 text-${stat.color}-600`}>
+              <stat.icon size={20} />
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+            <p className="text-xl font-black text-slate-800 tracking-tight">{stat.value}</p>
+          </Card>
         ))}
-      </nav>
+      </div>
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-10 pb-28 md:pb-10 no-scrollbar md:custom-scrollbar">
-        <header className="flex justify-between items-center mb-6 md:mb-10">
-          <h1 className="text-xl md:text-3xl font-black text-slate-800 tracking-tight capitalize">
-            {selectedGarden ? selectedGarden.name : view}
-          </h1>
-        </header>
-
-        {view === 'dashboard' && <DashboardView gardens={gardens} reminders={reminders} onToggleReminder={handleToggleReminder} setView={setView} onGardenSelect={handleGardenSelect} onShareApp={() => {
-           const json = JSON.stringify(gardens);
-           const encoded = btoa(encodeURIComponent(json));
-           const shareUrl = `${window.location.origin}${window.location.pathname}?workspace=${encoded}`;
-           navigator.clipboard.writeText(shareUrl).then(() => { setCopyFeedback("Link copied!"); setTimeout(() => setCopyFeedback(null), 3000); });
-        }} />}
-
-        {view === 'calendar' && <CalendarView reminders={reminders} onAddReminder={handleAddReminder} onToggleReminder={handleToggleReminder} onDeleteReminder={handleDeleteReminder} />}
-
-        {view === 'gardens' && !selectedGarden && (
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-            {gardens.map(g => (
-              <Card key={g.id} className="relative group cursor-pointer hover:border-emerald-200 animate-fade-in" onClick={() => handleGardenSelect(g.id)}>
-                <div className={`w-9 h-9 md:w-10 md:h-10 mb-3 rounded-xl flex items-center justify-center ${g.type === 'Indoor' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>{g.type === 'Indoor' ? <Home size={16} /> : <Sun size={16} />}</div>
-                <h3 className="text-base md:text-lg font-bold text-slate-800 truncate pr-6">{g.name}</h3>
-                <p className="text-[9px] md:text-[10px] text-slate-400 font-black uppercase tracking-widest">{g.plants?.length || 0} Plants • {g.type}</p>
-                <button onClick={(e) => { e.stopPropagation(); setEditingGarden(g); setIsModalOpen(true); }} className="absolute top-4 right-4 text-slate-300 hover:text-emerald-600 p-1"><Settings size={14}/></button>
-              </Card>
-            ))}
-            <button onClick={() => setIsModalOpen(true)} className="border-2 md:border-4 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-6 md:p-8 text-slate-400 hover:border-emerald-200 hover:text-emerald-500 transition-all min-h-[120px]">
-              <Plus size={24} className="mb-1" />
-              <span className="font-black uppercase tracking-widest text-[9px] md:text-[10px]">New Garden</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-slate-800">Quick Access</h2>
+            <button onClick={() => setView('gardens')} className="text-emerald-600 text-xs font-bold flex items-center gap-1 hover:underline">
+              View All <ChevronRight size={14} />
             </button>
           </div>
-        )}
-
-        {selectedGarden && (
-          <div className="space-y-4 md:space-y-8 animate-fade-in pb-10">
-            <button onClick={() => setSelectedGardenId(null)} className="flex items-center text-slate-400 hover:text-emerald-600 font-bold group text-xs md:text-sm">
-              <ChevronLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform" /> All Gardens
-            </button>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-              <div className="lg:col-span-2 space-y-4 md:space-y-6">
-                <Card className="p-4 md:p-6">
-                  <div className="flex items-center justify-between mb-4 md:mb-6">
-                    <h3 className="text-base md:text-lg font-black text-slate-800">Plants</h3>
-                    <Button onClick={() => setIsPlantModalOpen(true)} variant="outline" className="text-[9px] md:text-[10px] py-1.5 px-3 uppercase"><Plus size={14} /><span>Add</span></Button>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {gardens.slice(0, 4).map(garden => (
+              <Card key={garden.id} className="p-4 hover:border-emerald-200 transition-colors group cursor-pointer" onClick={() => { setView('gardens'); setSelectedGardenId(garden.id); }}>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{garden.name}</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{garden.type} System</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                    {selectedGarden.plants.map(p => {
-                      const daysLeft = getDaysRemaining(p.projectedHarvestDate);
-                      return (
-                        <div key={p.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 hover:border-emerald-200 transition-all flex flex-col group relative">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center space-x-3 overflow-hidden">
-                              {p.phasePhotos?.[p.stage] ? (
-                                <img src={p.phasePhotos[p.stage]} className="w-9 h-9 md:w-10 md:h-10 rounded-xl object-cover shrink-0" alt={p.name} />
-                              ) : (
-                                <div className="w-9 h-9 md:w-10 md:h-10 bg-white text-emerald-600 rounded-xl flex items-center justify-center shrink-0 border"><Sprout size={16} /></div>
-                              )}
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-800 text-xs md:text-sm truncate">{p.name}</p>
-                                <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase truncate opacity-70">{p.variety || 'Unknown'}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => { setEditingPlant(p); setIsPlantModalOpen(true); }} className="p-1.5 text-slate-300 hover:text-emerald-600"><Pencil size={14}/></button>
-                              <button onClick={() => { setSelectedPlantId(p.id); setIsPlantDetailOpen(true); }} className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm active:scale-95"><ExternalLink size={12} /></button>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap justify-between items-center mt-auto gap-2">
-                            <div className="px-2 py-0.5 bg-white rounded-md border text-[7px] md:text-[8px] font-black uppercase text-emerald-600">{p.stage}</div>
-                            {daysLeft !== null && daysLeft > 0 && (
-                              <div className="flex items-center gap-1 text-[7px] md:text-[8px] font-black uppercase text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-                                <Clock size={10} /> {daysLeft}d to Harvest
-                              </div>
-                            )}
-                            {p.totalYield && (
-                              <div className="flex items-center gap-1 text-[7px] md:text-[8px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                                <Trophy size={10} /> {p.totalYield}{p.yieldUnit}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {selectedGarden.plants.length === 0 && (
-                      <div className="sm:col-span-2 text-center py-12 bg-slate-50 border-2 border-dashed border-slate-100 rounded-2xl">
-                        <p className="text-slate-300 font-bold text-xs uppercase tracking-widest">No plants here yet</p>
-                      </div>
-                    )}
+                  <div className="bg-slate-50 p-2 rounded-lg text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                    <ChevronRight size={16} />
                   </div>
-                </Card>
-              </div>
-
-              <div className="space-y-4 md:space-y-6">
-                <Card className="flex flex-col h-fit p-4 md:p-6">
-                  <h3 className="text-base md:text-lg font-black text-slate-800 mb-4 md:mb-6 flex items-center gap-2"><Activity size={18} className="text-emerald-600" /> System Log</h3>
-                  <form onSubmit={addGardenNote} className="mb-4">
-                    <textarea 
-                      value={newGardenNoteText} 
-                      onChange={(e) => setNewGardenNoteText(e.target.value)} 
-                      placeholder="pH, water swap, etc..." 
-                      className={`w-full p-3 border rounded-xl outline-none text-xs transition-colors focus:border-emerald-500 min-h-[80px] ${editingNoteInfo && editingNoteInfo.type === 'system' ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`} 
-                    />
-                    
-                    {systemLogImage && (
-                      <div className="mt-2 relative inline-block">
-                        <img src={systemLogImage} className="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Preview" />
-                        <button type="button" onClick={() => setSystemLogImage(null)} className="absolute -top-1 -right-1 bg-rose-500 text-white p-0.5 rounded-full shadow-md"><X size={10}/></button>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 mt-2">
-                      <button type="button" onClick={() => systemLogCameraRef.current?.click()} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 active:scale-95 transition-all"><Camera size={18}/></button>
-                      <Button type="submit" className="flex-1 text-[10px] md:text-xs py-2">
-                        {editingNoteInfo && editingNoteInfo.type === 'system' ? <Check size={14} /> : <Send size={14} />}
-                        <span>{editingNoteInfo && editingNoteInfo.type === 'system' ? 'Update' : 'Post'}</span>
-                      </Button>
-                      {editingNoteInfo && editingNoteInfo.type === 'system' && (
-                        <button type="button" onClick={cancelEdit} className="p-2 bg-slate-100 text-slate-400 rounded-lg"><Undo2 size={16}/></button>
-                      )}
-                    </div>
-                  </form>
-                  <div className="space-y-2 overflow-y-auto max-h-[300px] no-scrollbar md:custom-scrollbar pr-1">
-                    {selectedGarden.notes.map(n => (
-                      <div key={n.id} className="p-3 border border-slate-100 bg-white rounded-xl text-[10px] md:text-[11px] group relative">
-                        <div className="flex justify-between items-start mb-1 gap-2">
-                          <p className="text-slate-400 font-black uppercase text-[7px]">{n.date}</p>
-                          <div className="flex gap-1 group-hover:opacity-100 opacity-0 transition-opacity">
-                            <button onClick={() => startEditGardenNote(n)} className="p-1 text-slate-300 hover:text-emerald-600"><Pencil size={10}/></button>
-                            <button onClick={() => deleteGardenNote(n.id)} className="p-1 text-slate-300 hover:text-rose-600"><Trash2 size={10}/></button>
-                          </div>
-                        </div>
-                        <p className="text-slate-600 leading-tight">"{n.content}"</p>
-                        {n.image && <img src={n.image} className="mt-2 w-full h-24 object-cover rounded-lg border" alt="Log" />}
-                      </div>
-                    ))}
-                    {selectedGarden.notes.length === 0 && <p className="text-center py-10 text-slate-200 italic font-bold uppercase text-[9px]">Empty Log</p>}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {view === 'settings' && (
-          <div className="max-w-4xl mx-auto space-y-4 md:space-y-6 animate-fade-in pb-20">
-            <Card className="p-4 md:p-6 border-l-4 border-l-emerald-500 bg-emerald-50/10">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldCheck size={18} className="text-emerald-600" />
-                <h3 className="text-base md:text-lg font-black text-slate-800">Local Privacy</h3>
-              </div>
-              <p className="text-[10px] md:text-xs text-slate-600 leading-relaxed">HydroGrow Pro is "local-first." Your data stays on this device. Perfect for secure, offline garden tracking.</p>
-            </Card>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-              <Card className="p-4 md:p-6 flex flex-col">
-                <div className="flex items-center gap-2 mb-2"><Share2 size={18} className="text-blue-500" /><h3 className="text-base md:text-lg font-black">Share Workspace</h3></div>
-                <p className="text-[10px] md:text-xs text-slate-500 mb-4 flex-1">Copy a magic link that exports your entire setup to another device.</p>
-                <Button onClick={() => {
-                  const json = JSON.stringify(gardens);
-                  const encoded = btoa(encodeURIComponent(json));
-                  const shareUrl = `${window.location.origin}${window.location.pathname}?workspace=${encoded}`;
-                  navigator.clipboard.writeText(shareUrl).then(() => { setCopyFeedback("Link copied!"); setTimeout(() => setCopyFeedback(null), 3000); });
-                }} variant="outline" className="w-full text-xs py-2.5"><LinkIcon size={14} /><span>Copy Share Link</span></Button>
-              </Card>
-
-              <Card className="p-4 md:p-6 flex flex-col">
-                <div className="flex items-center gap-2 mb-2"><Save size={18} className="text-emerald-600" /><h3 className="text-base md:text-lg font-black">Backup & Sync</h3></div>
-                <p className="text-[10px] md:text-xs text-slate-500 mb-4 flex-1">Export your database as a JSON file for safe keeping.</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="secondary" className="text-[10px] py-2.5" onClick={() => {
-                    const blob = new Blob([JSON.stringify({gardens, reminders})], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = "hydro_backup.json";
-                    a.click();
-                  }}><Download size={14}/><span>Save</span></Button>
-                  <Button variant="outline" className="text-[10px] py-2.5" onClick={() => fileInputRef.current?.click()}><FileUp size={14}/><span>Load</span></Button>
                 </div>
-              </Card>
-
-              <Card className="p-4 md:p-6 flex flex-col bg-slate-50/50">
-                <div className="flex items-center gap-2 mb-2"><RefreshCcw size={18} className="text-slate-400" /><h3 className="text-base md:text-lg font-black text-slate-600">Reset System</h3></div>
-                <p className="text-[10px] md:text-xs text-slate-500 mb-4 flex-1">Erase everything. Use with extreme caution.</p>
-                <Button variant="danger" className="w-full text-xs py-2.5" onClick={handleResetApp}><Trash2 size={14} /><span>Wipe Database</span></Button>
-              </Card>
-
-              <Card className="p-4 md:p-6 bg-amber-50/30 border-2 border-amber-100 flex flex-col items-center text-center">
-                 <Coffee size={24} className="text-amber-700 mb-2" />
-                 <h3 className="text-base md:text-lg font-black text-slate-800">Support Open Source</h3>
-                 <p className="text-[10px] md:text-xs text-slate-500 mb-4">Keep HydroGrow free and ad-free with a small donation.</p>
-                 <Button variant="coffee" className="w-full text-xs py-2.5" onClick={() => window.open('https://paypal.me/hydrogrow', '_blank')}>Buy me a Coffee</Button>
-              </Card>
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* --- MODALS --- */}
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-           <div className="bg-white rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl max-h-[95vh] overflow-y-auto landscape:max-h-[90vh]">
-              <h3 className="text-xl md:text-2xl font-black mb-6">{editingGarden ? 'Edit Garden' : 'New Garden'}</h3>
-              <form onSubmit={saveGarden} className="space-y-4">
-                 <div className="space-y-1">
-                   <p className="text-[9px] font-black uppercase text-slate-400 ml-1">System Name</p>
-                   <input name="gname" defaultValue={editingGarden?.name} placeholder="e.g. Master Aquaponics" required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
-                 </div>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Type</p>
-                     <select name="gtype" defaultValue={editingGarden?.type || 'Indoor'} className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-sm"><option value="Indoor">Indoor</option><option value="Outdoor">Outdoor</option></select>
-                   </div>
-                   <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Launch Date</p>
-                     <input name="gdate" type="date" defaultValue={editingGarden?.startedDate || new Date().toISOString().split('T')[0]} className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-sm" />
-                   </div>
-                 </div>
-                 <Button type="submit" className="w-full py-4 mt-2">Confirm System</Button>
-                 <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-slate-400 font-bold py-2 text-xs">Close</button>
-              </form>
-           </div>
-        </div>
-      )}
-
-      {isPlantModalOpen && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-           <div className="bg-white rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl max-h-[95vh] overflow-y-auto landscape:max-h-[90vh]">
-              <h3 className="text-xl md:text-2xl font-black mb-6">{editingPlant ? 'Edit Specimen' : 'Add Specimen'}</h3>
-              <form onSubmit={savePlant} className="space-y-4">
-                 <div className="space-y-1">
-                   <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Specimen Name</p>
-                   <input name="pname" defaultValue={editingPlant?.name} placeholder="e.g. Tomato #1" required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Variety</p>
-                   <input name="pvariety" defaultValue={editingPlant?.variety} placeholder="e.g. Beefsteak" className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-bold text-sm" />
-                 </div>
-                 <div className="grid grid-cols-2 gap-3 md:gap-4">
-                   <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Planted Date</p>
-                     <input name="pdate" type="date" defaultValue={editingPlant?.plantedDate || new Date().toISOString().split('T')[0]} required className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-xs md:text-sm" />
-                   </div>
-                   <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-slate-400 ml-1">Harvest Date</p>
-                     <input name="pharvest" type="date" defaultValue={editingPlant?.projectedHarvestDate} className="w-full p-3 md:p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none text-xs md:text-sm" />
-                   </div>
-                 </div>
-                 <Button type="submit" className="w-full py-4 mt-2">{editingPlant ? 'Update Specimen' : 'Save Specimen'}</Button>
-                 <button type="button" onClick={() => { setIsPlantModalOpen(false); setEditingPlant(null); }} className="w-full text-slate-400 font-bold py-2 text-xs">Cancel</button>
-              </form>
-           </div>
-        </div>
-      )}
-
-      {isPlantDetailOpen && inspectedPlant && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 md:p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-           <div className="bg-white rounded-[2rem] w-full max-w-3xl max-h-[98vh] overflow-y-auto p-5 md:p-10 relative no-scrollbar md:custom-scrollbar landscape:max-h-[95vh]">
-              <button onClick={() => setIsPlantDetailOpen(false)} className="absolute top-4 right-4 p-2 hover:text-rose-500 transition-colors z-20 bg-white/80 backdrop-blur-md rounded-full"><X size={20}/></button>
-              
-              <div className="flex flex-col sm:flex-row sm:items-end gap-1 md:gap-3 mb-4 md:mb-8 pr-10">
-                <h3 className="text-xl md:text-4xl font-black text-slate-800 leading-tight">{inspectedPlant.name}</h3>
-                <span className="text-emerald-600 font-bold text-sm md:text-xl opacity-80">{inspectedPlant.variety}</span>
-              </div>
-              
-              <div className="space-y-6 md:space-y-8">
-                <div className="relative group rounded-2xl md:rounded-3xl overflow-hidden border-2 border-slate-100 aspect-video md:aspect-[21/9] bg-slate-50 flex items-center justify-center">
-                  {inspectedPlant.phasePhotos?.[inspectedPlant.stage] ? (
-                    <img src={inspectedPlant.phasePhotos[inspectedPlant.stage]} className="w-full h-full object-cover" alt={inspectedPlant.name} />
-                  ) : (
-                    <div className="flex flex-col items-center text-slate-300">
-                      {/* Fixed: Removed invalid 'md:size' prop and replaced with responsive Tailwind classes */}
-                      <ImageIcon size={32} className="mb-2 opacity-30 md:w-12 md:h-12" />
-                      <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest">Capture {inspectedPlant.stage} Photo</p>
+                <div className="flex -space-x-2">
+                  {garden.plants.slice(0, 3).map((p, i) => (
+                    <div key={i} className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden">
+                      {p.phasePhotos?.Germination ? (
+                        <img src={p.phasePhotos.Germination} alt="" className="w-full h-full object-cover" />
+                      ) : p.name[0]}
+                    </div>
+                  ))}
+                  {garden.plants.length > 3 && (
+                    <div className="w-8 h-8 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-400">
+                      +{garden.plants.length - 3}
                     </div>
                   )}
-                  <button onClick={() => cameraInputRef.current?.click()} className="absolute bottom-3 right-3 p-3 md:p-4 bg-emerald-600 text-white rounded-xl md:rounded-2xl shadow-xl active:scale-95 transition-all"><Camera size={20} /></button>
+                  {garden.plants.length === 0 && <p className="text-[10px] text-slate-400 italic py-2 pl-2">No plants yet</p>}
                 </div>
+              </Card>
+            ))}
+            {gardens.length === 0 && (
+              <div className="sm:col-span-2 py-12 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400 bg-white/50">
+                <div className="bg-slate-100 p-4 rounded-full mb-4">
+                  <LayoutDashboard size={32} />
+                </div>
+                <p className="font-bold mb-4">You have no active gardens</p>
+                <Button onClick={() => setIsAddGardenOpen(true)}>Create Your First Garden</Button>
+              </div>
+            )}
+          </div>
+        </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                  <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 mb-2 md:mb-3">Phase</p>
-                    <div className="flex flex-wrap gap-1 md:gap-2">
-                      {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map(s => (
-                        <button key={s} onClick={() => updatePlantStage(s as LifecycleStage)} className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase transition-all ${inspectedPlant.stage === s ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-200 hover:border-emerald-200'}`}>{s}</button>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-slate-800">Reminders</h2>
+            <button className="text-emerald-600 text-xs font-bold hover:underline" onClick={() => setView('calendar')}>Calendar</button>
+          </div>
+          <Card className="p-1 space-y-1">
+            {reminders.length > 0 ? reminders.filter(r => !r.completed).slice(0, 5).map(reminder => (
+              <div key={reminder.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl group transition-all">
+                <button 
+                  onClick={() => setReminders(reminders.map(r => r.id === reminder.id ? {...r, completed: true} : r))}
+                  className="w-5 h-5 rounded-md border-2 border-slate-200 flex items-center justify-center group-hover:border-emerald-400"
+                >
+                  <div className="w-2 h-2 bg-emerald-500 rounded-sm opacity-0 group-hover:opacity-20"></div>
+                </button>
+                <div className="flex-grow">
+                  <p className="text-xs font-bold text-slate-700">{reminder.title}</p>
+                  <p className="text-[10px] text-slate-400 font-medium capitalize">{reminder.priority} Priority</p>
+                </div>
+                <div className="text-[10px] font-bold text-slate-300">Today</div>
+              </div>
+            )) : (
+              <div className="py-8 px-4 text-center">
+                <p className="text-xs text-slate-400 font-medium">All caught up! No active maintenance tasks.</p>
+              </div>
+            )}
+            <div className="p-3 border-t border-slate-50">
+              <Button variant="secondary" className="w-full text-xs py-2" onClick={() => setView('calendar')}>
+                <Plus size={14} /> Add Task
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="bg-emerald-900 p-6 text-white overflow-hidden relative border-none">
+            <div className="relative z-10">
+              <h3 className="font-black text-lg mb-1 leading-tight">Master the Growth</h3>
+              <p className="text-emerald-300 text-[11px] mb-4 font-medium">Keep your systems healthy with daily logging and nutrient checks.</p>
+              <Button variant="secondary" className="bg-emerald-400/20 border-none text-white hover:bg-emerald-400/30 backdrop-blur-sm text-xs">
+                Learn Hydropnics
+              </Button>
+            </div>
+            <Droplets className="absolute -bottom-4 -right-4 text-emerald-800 opacity-50 rotate-12" size={100} strokeWidth={1} />
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+
+  const GardensView = () => {
+    const selectedGarden = gardens.find(g => g.id === selectedGardenId) || gardens[0];
+
+    return (
+      <div className="animate-fade-in space-y-6 pb-24">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Gardens & Specimens</h1>
+            <p className="text-slate-400 text-sm font-medium">Manage your growing environments</p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <Button onClick={() => setIsAddGardenOpen(true)} variant="secondary" className="whitespace-nowrap">
+              <Plus size={18} /> New System
+            </Button>
+            <Button onClick={() => {
+              if (gardens.length === 0) {
+                alert("Please create a garden first");
+                setIsAddGardenOpen(true);
+              } else {
+                setSelectedGardenId(selectedGarden?.id || gardens[0]?.id);
+                setIsAddPlantOpen(true);
+              }
+            }} className="whitespace-nowrap">
+              <Sprout size={18} /> Add Specimen
+            </Button>
+          </div>
+        </div>
+
+        {gardens.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar Navigation */}
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3">Your Systems</h3>
+              {gardens.map(g => (
+                <button 
+                  key={g.id}
+                  onClick={() => setSelectedGardenId(g.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${selectedGardenId === g.id ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-500 hover:bg-slate-50 border border-transparent'}`}
+                >
+                  <div className={`p-2 rounded-xl ${selectedGardenId === g.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                    {g.type === 'Indoor' ? <LayoutDashboard size={18} /> : <Sun size={18} />}
+                  </div>
+                  <div className="text-left overflow-hidden">
+                    <p className="text-xs font-bold truncate leading-tight">{g.name}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider opacity-60">{g.plants.length} Plants</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Main Content Area */}
+            <div className="lg:col-span-3 space-y-8">
+              {selectedGarden ? (
+                <>
+                  <Card className="border-none shadow-md overflow-visible relative">
+                    <div className="absolute -top-4 -right-4 p-3 bg-white border border-slate-100 rounded-2xl shadow-xl flex gap-2">
+                       <button className="p-2 text-slate-400 hover:text-slate-600"><Settings size={14} /></button>
+                       <button className="p-2 text-rose-400 hover:text-rose-600" onClick={() => {
+                         if(confirm(`Delete "${selectedGarden.name}" and all specimens?`)) {
+                           setGardens(gardens.filter(g => g.id !== selectedGarden.id));
+                           setSelectedGardenId(null);
+                         }
+                       }}><Trash2 size={14} /></button>
+                    </div>
+                    <div className="p-8 md:p-10 bg-gradient-to-br from-emerald-50 to-white">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                          {selectedGarden.type} Hydro
+                        </span>
+                        <span className="text-slate-300 text-xs font-medium">Started {new Date(selectedGarden.startedDate).toLocaleDateString()}</span>
+                      </div>
+                      <h2 className="text-3xl font-black text-slate-800 mb-2">{selectedGarden.name}</h2>
+                      <div className="flex gap-6 mt-8">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                          <div className="flex items-center gap-2 text-emerald-600 font-bold">
+                            <Activity size={18} />
+                            <span className="text-sm">Healthy / Active</span>
+                          </div>
+                        </div>
+                        <div className="w-px h-10 bg-slate-200"></div>
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
+                          <p className="text-sm font-bold text-slate-800">{selectedGarden.plants.length} Current Specimens</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-100 p-4 bg-white flex justify-between items-center rounded-b-2xl">
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logs & Data Points: {selectedGarden.notes.length}</p>
+                       <Button variant="ghost" className="text-xs h-8 px-3">View Full Log</Button>
+                    </div>
+                  </Card>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-black text-slate-800">Current Specimens</h3>
+                      <div className="flex gap-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                          <input type="text" placeholder="Search plants..." className="pl-9 pr-4 py-2 bg-slate-100 border-none rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 transition-all w-32 md:w-48" />
+                        </div>
+                        <button className="p-2 bg-slate-100 text-slate-500 rounded-xl"><Filter size={16} /></button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {selectedGarden.plants.map(p => (
+                        <Card key={p.id} className="group hover:shadow-xl transition-all duration-300 border-slate-100 flex flex-col cursor-pointer" onClick={() => setInspectedPlant(p)}>
+                          <div className="aspect-[4/3] bg-slate-50 relative overflow-hidden">
+                            {p.phasePhotos?.[p.stage] ? (
+                              <img src={p.phasePhotos[p.stage]} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 group-hover:text-emerald-200 transition-colors">
+                                <Sprout size={48} strokeWidth={1} />
+                                <p className="text-[9px] font-black uppercase mt-2 tracking-widest">No Active Capture</p>
+                              </div>
+                            )}
+                            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg text-[9px] font-black text-slate-700 uppercase shadow-sm border border-white/50">
+                              {p.stage}
+                            </div>
+                          </div>
+                          <div className="p-5 flex-grow">
+                            <h4 className="font-black text-slate-800 text-base mb-1 group-hover:text-emerald-700 transition-colors">{p.name}</h4>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-4">{p.variety || 'Standard Variety'}</p>
+                            
+                            <div className="space-y-3">
+                              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-emerald-500 rounded-full" 
+                                  style={{ width: `${p.stage === 'Harvested' ? 100 : p.stage === 'Flowering' ? 75 : p.stage === 'Vegetative' ? 40 : 15}%` }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                                <span>Age: {Math.floor((new Date().getTime() - new Date(p.plantedDate).getTime()) / (1000 * 3600 * 24))}d</span>
+                                <span>{p.notes.length} Notes</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="px-5 py-4 border-t border-slate-50 bg-slate-50/30 flex justify-between items-center group-hover:bg-emerald-50/50 transition-colors">
+                            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Inspect Data</span>
+                            <ArrowRight size={14} className="text-emerald-400 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        </Card>
                       ))}
-                    </div>
-                  </div>
-                  <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 mb-0.5 md:mb-1">Age</p>
-                        <p className="text-xl md:text-3xl font-black text-slate-700">{calculateAge(inspectedPlant.plantedDate)} Days</p>
-                      </div>
-                      {inspectedPlant.projectedHarvestDate && (
-                        <div className="text-right">
-                          <p className="text-[8px] md:text-[9px] font-black uppercase text-amber-500 mb-0.5 md:mb-1">Target</p>
-                          <div className="flex items-center gap-1 text-amber-600 font-black text-sm md:text-xl">
-                            <Target size={14} /> {getDaysRemaining(inspectedPlant.projectedHarvestDate)}d
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {inspectedPlant.stage === 'Harvested' && (
-                  <div className="p-4 md:p-6 bg-blue-50/50 rounded-2xl border-2 border-blue-100 animate-fade-in">
-                    <h4 className="font-black text-sm md:text-lg flex items-center gap-2 text-blue-800 mb-3 md:mb-4"><Trophy size={16}/> Record Yield</h4>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input 
-                        type="number" 
-                        value={yieldAmount} 
-                        onChange={(e) => setYieldAmount(e.target.value)} 
-                        placeholder="Weight" 
-                        className="flex-1 p-3 bg-white border border-blue-200 rounded-xl outline-none font-bold text-sm" 
-                      />
-                      <select 
-                        value={yieldUnit} 
-                        onChange={(e) => setYieldUnit(e.target.value)}
-                        className="p-3 bg-white border border-blue-200 rounded-xl outline-none font-bold text-sm"
+                      
+                      <button 
+                        onClick={() => setIsAddPlantOpen(true)}
+                        className="aspect-[4/3] sm:aspect-auto sm:min-h-[250px] border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50/30 transition-all group"
                       >
-                        <option value="g">Grams</option><option value="oz">Ounces</option><option value="lbs">Pounds</option><option value="pcs">Pieces</option>
-                      </select>
-                      <Button onClick={saveYield} className="bg-blue-600 hover:bg-blue-700">Save</Button>
+                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3 group-hover:bg-emerald-100 transition-colors">
+                          <Plus size={24} />
+                        </div>
+                        <p className="font-bold text-sm">Add New Specimen</p>
+                      </button>
                     </div>
-                    {inspectedPlant.totalYield && (
-                        <p className="mt-3 text-[10px] font-black text-blue-700 bg-white inline-block px-3 py-1.5 rounded-lg border border-blue-100">
-                          Total: {inspectedPlant.totalYield} {inspectedPlant.yieldUnit}
-                        </p>
-                    )}
                   </div>
-                )}
+                </>
+              ) : (
+                <div className="text-center py-20 bg-white rounded-3xl border border-slate-200">
+                  <p className="text-slate-400 font-medium">Select a garden from the sidebar to begin</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 px-4 bg-white rounded-3xl border border-slate-200">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 text-slate-300">
+              <LayoutDashboard size={40} />
+            </div>
+            <h2 className="text-xl font-black text-slate-800 mb-2">Initialize Your Garden</h2>
+            <p className="text-slate-400 text-center max-w-sm mb-8 text-sm leading-relaxed">Create your first growing environment to start tracking your specimens and system data points.</p>
+            <Button onClick={() => setIsAddGardenOpen(true)} className="px-8 py-3">Create System</Button>
+          </div>
+        )}
 
-                <div className="space-y-4">
-                  <h4 className="font-black text-sm md:text-lg flex items-center gap-2"><ClipboardList size={18} className="text-emerald-600" /> Care Logs</h4>
-                  <form onSubmit={addPlantNote} className="flex gap-2">
-                    <input 
-                      value={newNoteText} 
-                      onChange={(e) => setNewNoteText(e.target.value)} 
-                      placeholder="Add note..." 
-                      className={`flex-1 p-3 md:p-4 border rounded-xl outline-none text-xs transition-colors ${editingNoteInfo && editingNoteInfo.type === 'plant' ? 'bg-amber-50 border-amber-200 focus:border-amber-400' : 'bg-slate-50 border-slate-100 focus:border-emerald-500'}`} 
-                    />
-                    <div className="flex gap-1.5">
-                      <Button type="submit" className="px-3">
-                        {editingNoteInfo && editingNoteInfo.type === 'plant' ? <Check size={18}/> : <Send size={18}/>}
-                      </Button>
-                      {editingNoteInfo && editingNoteInfo.type === 'plant' && (
-                        <button type="button" onClick={cancelEdit} className="p-2.5 bg-slate-100 text-slate-400 rounded-xl"><Undo2 size={16}/></button>
+        {/* Plant Inspection Modal */}
+        <Modal 
+          isOpen={!!inspectedPlant} 
+          onClose={() => { setInspectedPlant(null); setIsEditingPlantDate(false); }}
+          title="Specimen Inspection"
+        >
+          {inspectedPlant && (
+            <div className="space-y-8 pb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-base md:text-lg font-bold text-slate-800 truncate pr-6">{inspectedPlant.name}</h3>
+                  <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-wider">{inspectedPlant.variety || 'Indeterminate Variety'}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => deletePlant(inspectedPlant.id)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Card className="p-3 md:p-4 bg-slate-50 border-none">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Growth Stage</p>
+                  <select 
+                    value={inspectedPlant.stage}
+                    onChange={(e) => handleUpdatePlant(inspectedPlant.id, { stage: e.target.value as any })}
+                    className="w-full bg-transparent border-none p-0 text-sm font-bold text-emerald-600 focus:ring-0 cursor-pointer"
+                  >
+                    {['Germination', 'Vegetative', 'Flowering', 'Fruiting', 'Harvested'].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </Card>
+                <Card className="p-3 md:p-4 bg-slate-50 border-none">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Planting Data</p>
+                  {isEditingPlantDate ? (
+                    <div className="flex items-center gap-1">
+                      <input 
+                        type="date" 
+                        defaultValue={inspectedPlant.plantedDate.split('T')[0]}
+                        onChange={(e) => handleSavePlantDate(new Date(e.target.value).toISOString())}
+                        className="w-full bg-white border border-emerald-200 rounded px-1.5 py-0.5 text-[11px] font-bold text-emerald-700 outline-none focus:ring-1 focus:ring-emerald-400"
+                        onBlur={() => setIsEditingPlantDate(false)}
+                        autoFocus
+                      />
+                      <button onClick={() => setIsEditingPlantDate(false)} className="text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-1 group">
+                      <div className="flex items-center gap-1">
+                        <p className="text-sm font-bold text-slate-800">
+                          {Math.floor((new Date().getTime() - new Date(inspectedPlant.plantedDate).getTime()) / (1000 * 3600 * 24))}d
+                        </p>
+                        <span className="text-[9px] text-slate-400">old</span>
+                      </div>
+                      <button 
+                        onClick={() => setIsEditingPlantDate(true)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-white border border-slate-200 rounded text-slate-400 hover:text-emerald-600"
+                        title="Edit seed date"
+                      >
+                        <Pencil size={10} />
+                      </button>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Lifecycle Gallery</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Snap key changes</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {['Germination', 'Vegetative', 'Flowering', 'Harvested'].map((stage: any) => (
+                    <div key={stage} className="space-y-1">
+                      <button 
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e: any) => {
+                            const file = e.target.files[0];
+                            const reader = new FileReader();
+                            reader.onload = (re) => {
+                              const base64 = re.target?.result as string;
+                              handleUpdatePlant(inspectedPlant.id, {
+                                phasePhotos: { ...inspectedPlant.phasePhotos, [stage]: base64 }
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                          };
+                          input.click();
+                        }}
+                        className={`w-full aspect-square rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden group ${inspectedPlant.phasePhotos?.[stage] ? 'border-emerald-100' : 'border-slate-100 hover:border-emerald-200'}`}
+                      >
+                        {inspectedPlant.phasePhotos?.[stage] ? (
+                          <img src={inspectedPlant.phasePhotos[stage]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                        ) : (
+                          <div className="flex flex-col items-center text-slate-300">
+                            {/* Fixed: Removed invalid 'md:size' prop and replaced with Tailwind responsive classes */}
+                            <ImageIcon className="w-8 h-8 md:w-12 md:h-12 mb-2 opacity-30" />
+                            <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest">Capture {stage}</p>
+                          </div>
+                        )}
+                      </button>
+                      <p className="text-[9px] text-center font-bold text-slate-400 uppercase tracking-widest">{stage}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-50">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Growth Logs</h4>
+                  <button 
+                    onClick={() => {
+                      const content = prompt("Enter a log entry for this specimen:");
+                      if (content) {
+                        const newNote: GardenNote = { id: Date.now().toString(), date: new Date().toISOString(), content };
+                        handleUpdatePlant(inspectedPlant.id, { notes: [newNote, ...inspectedPlant.notes] });
+                      }
+                    }}
+                    className="text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg"
+                  >
+                    <Plus size={12} /> Add Log
+                  </button>
+                </div>
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {inspectedPlant.notes.length > 0 ? inspectedPlant.notes.map(note => (
+                    <div key={note.id} className="p-3 bg-slate-50 rounded-xl relative group">
+                      <p className="text-[10px] font-bold text-slate-400 mb-1">{new Date(note.date).toLocaleString()}</p>
+                      <p className="text-xs text-slate-700 leading-relaxed pr-6">{note.content}</p>
+                      <button 
+                        onClick={() => handleUpdatePlant(inspectedPlant.id, { notes: inspectedPlant.notes.filter(n => n.id !== note.id) })}
+                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600 transition-opacity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                      <Notebook size={24} className="mx-auto text-slate-200 mb-2" />
+                      <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No data points yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <Button variant="secondary" className="flex-grow" onClick={() => setInspectedPlant(null)}>Close Inspection</Button>
+                <Button 
+                   variant="secondary"
+                   className="bg-slate-100 text-slate-600 border-none" 
+                   onClick={() => {
+                      const shareUrl = window.location.href;
+                      navigator.clipboard.writeText(shareUrl).then(() => {
+                        setCopyFeedback("Link copied!");
+                        setTimeout(() => setCopyFeedback(null), 3000);
+                      });
+                   }}
+                >
+                   <Share2 size={18} />
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      </div>
+    );
+  };
+
+  const CalendarView = () => (
+    <div className="animate-fade-in space-y-6 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Maintenance</h1>
+          <p className="text-slate-400 text-sm font-medium">Task schedule and system reminders</p>
+        </div>
+        <Button onClick={() => {
+          const title = prompt("Reminder Title:");
+          if (title) {
+            setReminders([...reminders, {
+              id: Date.now().toString(),
+              title,
+              date: new Date().toISOString(),
+              completed: false,
+              priority: 'medium'
+            }]);
+          }
+        }}>
+          <Plus size={18} /> Add Task
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3 space-y-6">
+           <Card className="p-8">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-lg font-black text-slate-800">Growth Calendar</h2>
+                <div className="flex gap-2">
+                  <button className="p-2 hover:bg-slate-50 rounded-lg text-slate-400"><ChevronLeft size={20} /></button>
+                  <p className="text-sm font-black text-slate-800 min-w-32 text-center flex items-center justify-center">March 2024</p>
+                  <button className="p-2 hover:bg-slate-50 rounded-lg text-slate-400"><ChevronRight size={20} /></button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 md:gap-4">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest pb-4">{day}</div>
+                ))}
+                {Array.from({ length: 31 }).map((_, i) => (
+                  <div key={i} className={`aspect-square md:aspect-auto md:h-24 p-2 rounded-2xl border transition-all ${i + 1 === 14 ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-100 hover:border-slate-200'} cursor-pointer group`}>
+                    <p className={`text-xs font-bold mb-2 ${i + 1 === 14 ? 'text-emerald-700' : 'text-slate-400'}`}>{i + 1}</p>
+                    <div className="hidden md:block space-y-1">
+                      {i + 1 === 14 && (
+                        <div className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-bold rounded shadow-sm flex items-center gap-1">
+                          <Droplets size={8} /> Nutrients
+                        </div>
+                      )}
+                      {i + 1 === 20 && (
+                        <div className="px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded shadow-sm flex items-center gap-1">
+                          <CheckCircle2 size={8} /> PH Check
+                        </div>
                       )}
                     </div>
-                  </form>
-                  <div className="space-y-2 md:space-y-3">
-                    {inspectedPlant.notes.map(n => (
-                      <div key={n.id} className="p-3 md:p-4 border border-slate-100 bg-white rounded-xl text-[10px] md:text-xs group relative">
-                        <div className="flex justify-between items-start mb-1 md:mb-2 gap-2">
-                          <p className="text-[7px] md:text-[8px] font-black text-emerald-600 uppercase opacity-60">{n.date}</p>
-                          <div className="flex gap-1 group-hover:opacity-100 opacity-60 transition-opacity">
-                            <button onClick={() => startEditPlantNote(n)} className="p-1 text-slate-300 hover:text-emerald-600"><Pencil size={12}/></button>
-                            <button onClick={() => deletePlantNote(n.id)} className="p-1 text-slate-300 hover:text-rose-600"><Trash2 size={12}/></button>
-                          </div>
-                        </div>
-                        <p className="text-slate-600 leading-relaxed italic">"{n.content}"</p>
-                      </div>
-                    ))}
-                    {inspectedPlant.notes.length === 0 && <p className="text-center py-6 text-slate-300 italic text-[10px]">No plant notes yet.</p>}
+                    {/* Mobile Indicators */}
+                    <div className="md:hidden flex flex-wrap gap-0.5 justify-center">
+                      {i + 1 === 14 && <div className="w-1 h-1 bg-emerald-500 rounded-full"></div>}
+                      {i + 1 === 20 && <div className="w-1 h-1 bg-blue-500 rounded-full"></div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+           </Card>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <Card className="p-6 bg-blue-900 text-white border-none">
+                <Target size={24} className="mb-4 text-blue-300" />
+                <h3 className="font-bold mb-1">Coming Up: Harvest Window</h3>
+                <p className="text-blue-200 text-xs mb-4">"Cherry Tomatoes" in Urban Balcony system are reaching maturity in 4 days.</p>
+                <Button variant="secondary" className="bg-blue-400/20 text-white border-none hover:bg-blue-400/30 text-xs py-1.5">Set Reminder</Button>
+             </Card>
+             <Card className="p-6 bg-slate-900 text-white border-none">
+                <History size={24} className="mb-4 text-slate-300" />
+                <h3 className="font-bold mb-1">System Log: Nutrient Change</h3>
+                <p className="text-slate-400 text-xs mb-4">Last full water and nutrient flush completed 12 days ago.</p>
+                <Button variant="secondary" className="bg-slate-400/20 text-white border-none hover:bg-slate-400/30 text-xs py-1.5">View System History</Button>
+             </Card>
+           </div>
+        </div>
+
+        <div className="space-y-6">
+           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Active Tasks</h3>
+           <div className="space-y-3">
+              {reminders.map(r => (
+                <Card key={r.id} className={`p-4 transition-all ${r.completed ? 'opacity-40 scale-95' : 'hover:shadow-md'}`}>
+                  <div className="flex items-start gap-3">
+                    <button 
+                      onClick={() => setReminders(reminders.map(rem => rem.id === r.id ? {...rem, completed: !rem.completed} : rem))}
+                      className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${r.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 hover:border-emerald-400'}`}
+                    >
+                      {r.completed && <Check size={14} strokeWidth={3} />}
+                    </button>
+                    <div className="flex-grow min-w-0">
+                      <p className={`text-xs font-bold truncate leading-tight ${r.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{r.title}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{new Date(r.date).toLocaleDateString()}</p>
+                    </div>
+                    <button 
+                      onClick={() => setReminders(reminders.filter(rem => rem.id !== r.id))}
+                      className="text-slate-300 hover:text-rose-500 p-1"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </Card>
+              ))}
+              {reminders.length === 0 && (
+                <div className="p-8 text-center bg-white border border-slate-100 rounded-3xl">
+                  <p className="text-xs text-slate-300 font-bold uppercase tracking-widest">No active tasks</p>
+                </div>
+              )}
+           </div>
+           
+           <Card className="p-5 border-emerald-100 bg-emerald-50/30">
+              <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-3">Pro Growing Tip</h4>
+              <p className="text-[11px] text-emerald-800 leading-relaxed font-medium">Keep your nutrient solution between 18-22°C (65-72°F). Higher temps can lead to root rot and reduced oxygen absorption.</p>
+           </Card>
+        </div>
+      </div>
+    </div>
+  );
+
+  const SettingsView = () => (
+    <div className="animate-fade-in max-w-2xl mx-auto space-y-8 pb-20">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800 tracking-tight">System Configuration</h1>
+        <p className="text-slate-400 text-sm font-medium">Manage your profile and platform preferences</p>
+      </div>
+
+      <Card className="p-8 space-y-8">
+        <div className="flex items-center gap-6 pb-8 border-b border-slate-100">
+          <div className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-emerald-200">
+            {profile.name[0]}
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-slate-800 mb-1">{profile.name}</h3>
+            <p className="text-slate-400 text-sm font-medium">hydro-pro-member#9281</p>
+            <div className="flex gap-2 mt-3">
+              <Button variant="secondary" className="py-1 px-3 text-[10px]">Change Photo</Button>
+              <Button variant="ghost" className="py-1 px-3 text-[10px]">Edit Name</Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Interface Settings</h4>
+          <div className="space-y-2">
+            {[
+              { icon: Moon, label: 'Dark Mode', desc: 'Sync with system appearance', toggle: true, checked: false },
+              { icon: Bell, label: 'Notifications', desc: 'Push alerts for system maintenance', toggle: true, checked: true },
+              { icon: Database, label: 'Local Backup', desc: 'Keep redundant offline copies of your data', toggle: true, checked: true },
+              { icon: User, label: 'Visibility', desc: 'Show garden stats to growing community', toggle: true, checked: false },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer group">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 bg-slate-100 text-slate-400 rounded-xl group-hover:bg-white group-hover:shadow-sm group-hover:text-emerald-600 transition-all">
+                    <item.icon size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">{item.label}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">{item.desc}</p>
                   </div>
                 </div>
-
-                <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-3 justify-between items-center pb-2">
-                   <button onClick={() => deletePlant(inspectedPlant.id)} className="text-rose-300 hover:text-rose-500 font-black text-[9px] uppercase flex items-center gap-1.5 py-2"><Trash2 size={12}/> Delete specimen</button>
-                   <Button onClick={() => setIsPlantDetailOpen(false)} className="w-full sm:w-auto px-10">Done</Button>
+                <div className={`w-10 h-5 rounded-full transition-all relative ${item.checked ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${item.checked ? 'right-1' : 'left-1'}`}></div>
                 </div>
               </div>
-           </div>
+            ))}
+          </div>
         </div>
-      )}
 
-      {isImportModalOpen && pendingImportData && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-           <div className="bg-white rounded-[2rem] w-full max-sm p-6 md:p-8 shadow-2xl text-center">
-              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><LinkIcon size={28} /></div>
-              <h3 className="text-xl font-black mb-3">Import shared data?</h3>
-              <p className="text-[10px] md:text-xs text-slate-500 mb-6 leading-relaxed">We found {pendingImportData.length} systems in the link. Do you want to merge them into your workspace?</p>
-              <div className="space-y-2">
-                 <Button onClick={() => { setGardens(prev => [...prev, ...pendingImportData]); setIsImportModalOpen(false); }} className="w-full py-3 text-xs">Merge into current</Button>
-                 <Button onClick={() => { setGardens(pendingImportData); setIsImportModalOpen(false); }} variant="secondary" className="w-full py-3 text-xs">Replace everything</Button>
-                 <button onClick={() => setIsImportModalOpen(false)} className="text-slate-300 font-bold py-2 text-[10px]">Ignore link</button>
-              </div>
-           </div>
+        <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
+           <Button variant="danger" className="px-6">Delete All Garden Data</Button>
+           <Button variant="coffee" className="px-6" onClick={() => window.open('https://paypal.me/hydrogrow', '_blank')}>Support HydroGrow Pro</Button>
         </div>
-      )}
+      </Card>
+
+      <div className="flex flex-col items-center gap-2 text-slate-300">
+        <Sprout size={24} />
+        <p className="text-[10px] font-black uppercase tracking-[0.3em]">HydroGrow Pro v2.4.0-Stable</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen pb-10 max-w-7xl mx-auto px-4 md:px-8 pt-6">
+      {/* Dynamic View Header/Wrapper */}
+      <main>
+        {view === 'dashboard' && <DashboardView />}
+        {view === 'gardens' && <GardensView />}
+        {view === 'calendar' && <CalendarView />}
+        {view === 'settings' && <SettingsView />}
+      </main>
+
+      {/* Persistent Navigation Bar (Mobile) */}
+      <nav className="fixed bottom-6 left-6 right-6 z-50 md:left-1/2 md:-translate-x-1/2 md:max-w-md lg:max-w-lg">
+        <Card className="rounded-[2.5rem] shadow-2xl p-2.5 flex justify-between bg-white/95 backdrop-blur-xl border-white/50 ring-1 ring-slate-900/5">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
+            { id: 'gardens', icon: Sprout, label: 'Gardens' },
+            { id: 'calendar', icon: Calendar, label: 'Tasks' },
+            { id: 'settings', icon: Settings, label: 'Setup' },
+          ].map((nav) => (
+            <button
+              key={nav.id}
+              onClick={() => setView(nav.id as any)}
+              className={`flex-grow flex flex-col items-center justify-center p-3 rounded-[2rem] transition-all relative ${view === nav.id ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <nav.icon size={22} strokeWidth={view === nav.id ? 2.5 : 2} />
+              <span className={`text-[9px] font-black uppercase mt-1 tracking-widest ${view === nav.id ? 'opacity-100' : 'opacity-0'}`}>{nav.label}</span>
+              {view === nav.id && <div className="absolute -top-1 w-1 h-1 bg-emerald-600 rounded-full"></div>}
+            </button>
+          ))}
+        </Card>
+      </nav>
+
+      {/* Global Modals */}
+      <Modal isOpen={isAddGardenOpen} onClose={() => setIsAddGardenOpen(false)} title="System Initialization">
+        <form onSubmit={handleAddGarden} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Garden Name</label>
+              <input name="name" required placeholder="e.g., Balcony Hydroponics" className="w-full bg-slate-50 border-slate-100 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">System Type</label>
+              <select name="type" className="w-full bg-slate-50 border-slate-100 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none">
+                <option value="Indoor">Indoor System</option>
+                <option value="Outdoor">Outdoor / Green House</option>
+              </select>
+            </div>
+          </div>
+          <Button type="submit" className="w-full py-4 text-base font-black">Initialize System</Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isAddPlantOpen} onClose={() => setIsAddPlantOpen(false)} title="Add New Specimen">
+        <form onSubmit={handleAddPlant} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Specimen Name</label>
+              <input name="name" required placeholder="e.g., Cherry Tomato #1" className="w-full bg-slate-50 border-slate-100 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Variety (Optional)</label>
+              <input name="variety" placeholder="e.g., Roma / Heirloom" className="w-full bg-slate-50 border-slate-100 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Seeded Date</label>
+              <input name="plantedDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 border-slate-100 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none" />
+            </div>
+          </div>
+          <Button type="submit" className="w-full py-4 text-base font-black">Add to {gardens.find(g => g.id === selectedGardenId)?.name || 'System'}</Button>
+        </form>
+      </Modal>
 
       {copyFeedback && (
         <div className="fixed bottom-24 md:top-6 right-1/2 translate-x-1/2 md:translate-x-0 md:right-6 bg-slate-800 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 animate-fade-in z-[300]">
