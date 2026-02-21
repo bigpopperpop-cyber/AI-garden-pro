@@ -98,16 +98,16 @@ const Button = ({ children, onClick, variant = 'primary', className = "", type =
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-fade-in overflow-hidden">
+      <div className="relative bg-white w-full sm:max-w-lg h-full sm:h-auto sm:rounded-3xl shadow-2xl flex flex-col max-h-full sm:max-h-[90vh] animate-fade-in overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-white sticky top-0 z-10">
           <h2 className="text-lg font-bold text-slate-800">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <X size={20} className="text-slate-400" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-grow">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-grow pb-24 sm:pb-6">
           {children}
         </div>
       </div>
@@ -340,31 +340,31 @@ export default function App() {
     }, [chatMessages]);
 
     return (
-      <div className="animate-fade-in flex flex-col h-[calc(100vh-180px)] max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+      <div className="animate-fade-in flex flex-col h-[calc(100dvh-160px)] md:h-[calc(100vh-180px)] max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
               <BrainCircuit className="text-emerald-600" /> Grow Assistant
             </h1>
-            <p className="text-slate-400 text-sm font-medium">AI-powered troubleshooting and advice</p>
+            <p className="text-slate-400 text-xs md:sm font-medium">AI-powered troubleshooting and advice</p>
           </div>
-          <Button variant="secondary" onClick={() => setChatMessages([])} className="text-xs">
-            <Trash2 size={14} /> Clear Chat
+          <Button variant="secondary" onClick={() => setChatMessages([])} className="text-[10px] md:text-xs px-2 py-1 md:px-4 md:py-2">
+            <Trash2 size={14} /> <span className="hidden sm:inline">Clear Chat</span>
           </Button>
         </div>
 
-        <Card className="flex-grow flex flex-col overflow-hidden border-none shadow-xl bg-white">
-          <div className="flex-grow overflow-y-auto p-6 space-y-4 custom-scrollbar" ref={messagesEndRef}>
+        <Card className="flex-grow flex flex-col overflow-hidden border-none shadow-xl bg-white relative">
+          <div className="flex-grow overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar" ref={messagesEndRef}>
             {chatMessages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-60">
-                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-                  <Bot size={32} />
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-60 py-10">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                  <Bot size={28} />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-800">How can I help your garden today?</p>
-                  <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1">Ask about nutrient deficiencies, pH levels, or harvest timing.</p>
+                  <p className="font-bold text-slate-800 text-sm md:text-base">How can I help your garden today?</p>
+                  <p className="text-[10px] md:text-xs text-slate-400 max-w-xs mx-auto mt-1">Ask about nutrient deficiencies, pH levels, or harvest timing.</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md px-4">
                   {[
                     "Why are my leaves turning yellow?",
                     "What's the ideal pH for lettuce?",
@@ -374,7 +374,7 @@ export default function App() {
                     <button 
                       key={q}
                       onClick={() => handleSendMessage(q)}
-                      className="p-3 text-left text-xs font-bold text-slate-600 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-all border border-slate-100"
+                      className="p-3 text-left text-[10px] md:text-xs font-bold text-slate-600 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-all border border-slate-100"
                     >
                       {q}
                     </button>
@@ -384,9 +384,9 @@ export default function App() {
             )}
             {chatMessages.map(msg => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                  <p className={`text-[9px] mt-2 font-bold uppercase tracking-widest ${msg.role === 'user' ? 'text-emerald-200' : 'text-slate-400'}`}>
+                <div className={`max-w-[90%] md:max-w-[80%] p-3 md:p-4 rounded-2xl ${msg.role === 'user' ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
+                  <p className="text-xs md:text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  <p className={`text-[8px] md:text-[9px] mt-2 font-bold uppercase tracking-widest ${msg.role === 'user' ? 'text-emerald-200' : 'text-slate-400'}`}>
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
@@ -404,16 +404,16 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="p-4 bg-slate-50 border-t border-slate-100">
+          <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-100">
             <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(input); setInput(""); }} className="flex gap-2">
               <input 
                 type="text" 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask the Grow Assistant..." 
-                className="flex-grow bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                className="flex-grow bg-white border border-slate-200 rounded-xl px-4 py-2.5 md:py-3 text-xs md:text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
               />
-              <Button type="submit" disabled={isChatLoading || !input.trim()} className="px-6">
+              <Button type="submit" disabled={isChatLoading || !input.trim()} className="px-4 md:px-6">
                 <Send size={18} />
               </Button>
             </form>
@@ -593,11 +593,11 @@ export default function App() {
       <div className="animate-fade-in space-y-6 pb-24">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Gardens & Specimens</h1>
-            <p className="text-slate-400 text-sm font-medium">Manage your growing environments</p>
+            <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Gardens & Specimens</h1>
+            <p className="text-slate-400 text-xs md:sm font-medium">Manage your growing environments</p>
           </div>
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            <Button onClick={() => setIsAddGardenOpen(true)} variant="secondary" className="whitespace-nowrap">
+            <Button onClick={() => setIsAddGardenOpen(true)} variant="secondary" className="whitespace-nowrap text-xs md:text-sm">
               <Plus size={18} /> New System
             </Button>
             <Button onClick={() => {
@@ -608,36 +608,36 @@ export default function App() {
                 setSelectedGardenId(selectedGarden?.id || gardens[0]?.id);
                 setIsAddPlantOpen(true);
               }
-            }} className="whitespace-nowrap">
+            }} className="whitespace-nowrap text-xs md:text-sm">
               <Sprout size={18} /> Add Specimen
             </Button>
           </div>
         </div>
 
         {gardens.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8">
             {/* Sidebar Navigation */}
-            <div className="space-y-2">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3">Your Systems</h3>
+            <div className="md:col-span-4 lg:col-span-3 space-y-2 overflow-x-auto md:overflow-visible flex md:flex-col gap-2 md:gap-2 no-scrollbar pb-2 md:pb-0">
+              <h3 className="hidden md:block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3">Your Systems</h3>
               {gardens.map(g => (
                 <button 
                   key={g.id}
                   onClick={() => setSelectedGardenId(g.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${selectedGardenId === g.id ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-500 hover:bg-slate-50 border border-transparent'}`}
+                  className={`flex-shrink-0 md:w-full flex items-center gap-3 p-2 md:p-3 rounded-2xl transition-all ${selectedGardenId === g.id ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-500 hover:bg-slate-50 border border-transparent'}`}
                 >
                   <div className={`p-2 rounded-xl ${selectedGardenId === g.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                     {g.type === 'Indoor' ? <LayoutDashboard size={18} /> : <Sun size={18} />}
                   </div>
                   <div className="text-left overflow-hidden">
-                    <p className="text-xs font-bold truncate leading-tight">{g.name}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider opacity-60">{g.plants.length} Plants</p>
+                    <p className="text-[10px] md:text-xs font-bold truncate leading-tight">{g.name}</p>
+                    <p className="text-[8px] md:text-[9px] font-bold uppercase tracking-wider opacity-60">{g.plants.length} Plants</p>
                   </div>
                 </button>
               ))}
             </div>
 
             {/* Main Content Area */}
-            <div className="lg:col-span-3 space-y-8">
+            <div className="md:col-span-8 lg:col-span-9 space-y-6 md:space-y-8">
               {selectedGarden ? (
                 <>
                   <Card className="border-none shadow-md overflow-visible relative">
@@ -650,14 +650,14 @@ export default function App() {
                          }
                        }}><Trash2 size={14} /></button>
                     </div>
-                    <div className="p-8 md:p-10 bg-gradient-to-br from-emerald-50 to-white">
-                      <div className="flex items-center gap-3 mb-4">
-                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                    <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-emerald-50 to-white">
+                      <div className="flex flex-wrap items-center gap-3 mb-4">
+                        <span className="bg-emerald-100 text-emerald-700 text-[9px] md:text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
                           {selectedGarden.type} Hydro
                         </span>
-                        <span className="text-slate-300 text-xs font-medium">Started {new Date(selectedGarden.startedDate).toLocaleDateString()}</span>
+                        <span className="text-slate-300 text-[10px] md:text-xs font-medium">Started {new Date(selectedGarden.startedDate).toLocaleDateString()}</span>
                       </div>
-                      <h2 className="text-3xl font-black text-slate-800 mb-2">{selectedGarden.name}</h2>
+                      <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">{selectedGarden.name}</h2>
                       
                       {/* AI Insights Section */}
                       <div className="mt-6">
@@ -665,9 +665,9 @@ export default function App() {
                           <div className="bg-white/60 backdrop-blur-md border border-emerald-100 rounded-2xl p-4 animate-fade-in">
                             <div className="flex items-center gap-2 mb-3">
                               <Sparkles size={16} className="text-emerald-600" />
-                              <h4 className="text-xs font-black text-emerald-800 uppercase tracking-widest">AI Growth Insights</h4>
+                              <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">AI Growth Insights</h4>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                               <div className="space-y-1">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Targets</p>
                                 <p className="text-xs font-bold text-slate-700">pH: {growthInsights[selectedGarden.id].phTarget} | EC: {growthInsights[selectedGarden.id].ecTarget}</p>
@@ -683,7 +683,7 @@ export default function App() {
                             </div>
                             <div className="mt-3 pt-3 border-t border-emerald-50 flex gap-2 overflow-x-auto no-scrollbar">
                               {growthInsights[selectedGarden.id].generalTips.map((tip, i) => (
-                                <span key={i} className="whitespace-nowrap bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-100">
+                                <span key={i} className="whitespace-nowrap bg-emerald-50 text-emerald-700 text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-100">
                                   {tip}
                                 </span>
                               ))}
@@ -699,25 +699,25 @@ export default function App() {
                               <div className="w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
                             ) : (
                               <>
-                                <Sparkles size={14} /> Generate AI Growth Insights
+                                <Sparkles size={14} /> <span className="text-[10px] md:text-xs">Generate AI Growth Insights</span>
                               </>
                             )}
                           </button>
                         )}
                       </div>
 
-                      <div className="flex gap-6 mt-8">
+                      <div className="flex flex-wrap gap-4 md:gap-6 mt-8">
                         <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
                           <div className="flex items-center gap-2 text-emerald-600 font-bold">
-                            <Activity size={18} />
-                            <span className="text-sm">Healthy / Active</span>
+                            <Activity size={16} />
+                            <span className="text-xs md:text-sm">Healthy / Active</span>
                           </div>
                         </div>
-                        <div className="w-px h-10 bg-slate-200"></div>
+                        <div className="hidden sm:block w-px h-10 bg-slate-200"></div>
                         <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
-                          <p className="text-sm font-bold text-slate-800">{selectedGarden.plants.length} Current Specimens</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
+                          <p className="text-xs md:text-sm font-bold text-slate-800">{selectedGarden.plants.length} Specimens</p>
                         </div>
                       </div>
                     </div>
@@ -1047,10 +1047,10 @@ export default function App() {
 
   const CalendarView = () => (
     <div className="animate-fade-in space-y-6 pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Maintenance</h1>
-          <p className="text-slate-400 text-sm font-medium">Task schedule and system reminders</p>
+          <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Maintenance</h1>
+          <p className="text-slate-400 text-xs md:sm font-medium">Task schedule and system reminders</p>
         </div>
         <Button onClick={() => {
           const title = prompt("Reminder Title:");
@@ -1063,30 +1063,30 @@ export default function App() {
               priority: 'medium'
             }]);
           }
-        }}>
+        }} className="text-xs md:text-sm">
           <Plus size={18} /> Add Task
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-3 space-y-6">
-           <Card className="p-8">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-lg font-black text-slate-800">Growth Calendar</h2>
-                <div className="flex gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+        <div className="lg:col-span-8 space-y-6">
+           <Card className="p-4 md:p-8">
+              <div className="flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-8 gap-4">
+                <h2 className="text-base md:text-lg font-black text-slate-800">Growth Calendar</h2>
+                <div className="flex items-center gap-2">
                   <button className="p-2 hover:bg-slate-50 rounded-lg text-slate-400"><ChevronLeft size={20} /></button>
-                  <p className="text-sm font-black text-slate-800 min-w-32 text-center flex items-center justify-center">March 2024</p>
+                  <p className="text-xs md:text-sm font-black text-slate-800 min-w-[100px] md:min-w-[128px] text-center">March 2024</p>
                   <button className="p-2 hover:bg-slate-50 rounded-lg text-slate-400"><ChevronRight size={20} /></button>
                 </div>
               </div>
 
               <div className="grid grid-cols-7 gap-1 md:gap-4">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest pb-4">{day}</div>
+                  <div key={day} className="text-center text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest pb-2 md:pb-4">{day}</div>
                 ))}
                 {Array.from({ length: 31 }).map((_, i) => (
-                  <div key={i} className={`aspect-square md:aspect-auto md:h-24 p-2 rounded-2xl border transition-all ${i + 1 === 14 ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-100 hover:border-slate-200'} cursor-pointer group`}>
-                    <p className={`text-xs font-bold mb-2 ${i + 1 === 14 ? 'text-emerald-700' : 'text-slate-400'}`}>{i + 1}</p>
+                  <div key={i} className={`aspect-square md:aspect-auto md:h-24 p-1 md:p-2 rounded-lg md:rounded-2xl border transition-all ${i + 1 === 14 ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-100 hover:border-slate-200'} cursor-pointer group`}>
+                    <p className={`text-[10px] md:text-xs font-bold mb-1 md:mb-2 ${i + 1 === 14 ? 'text-emerald-700' : 'text-slate-400'}`}>{i + 1}</p>
                     <div className="hidden md:block space-y-1">
                       {i + 1 === 14 && (
                         <div className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-bold rounded shadow-sm flex items-center gap-1">
@@ -1109,27 +1109,27 @@ export default function App() {
               </div>
            </Card>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <Card className="p-6 bg-blue-900 text-white border-none">
-                <Target size={24} className="mb-4 text-blue-300" />
-                <h3 className="font-bold mb-1">Coming Up: Harvest Window</h3>
-                <p className="text-blue-200 text-xs mb-4">"Cherry Tomatoes" in Urban Balcony system are reaching maturity in 4 days.</p>
-                <Button variant="secondary" className="bg-blue-400/20 text-white border-none hover:bg-blue-400/30 text-xs py-1.5">Set Reminder</Button>
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+             <Card className="p-5 md:p-6 bg-blue-900 text-white border-none">
+                <Target size={24} className="mb-3 md:mb-4 text-blue-300" />
+                <h3 className="text-sm md:text-base font-bold mb-1">Coming Up: Harvest Window</h3>
+                <p className="text-blue-200 text-[10px] md:text-xs mb-4">"Cherry Tomatoes" in Urban Balcony system are reaching maturity in 4 days.</p>
+                <Button variant="secondary" className="bg-blue-400/20 text-white border-none hover:bg-blue-400/30 text-[10px] md:text-xs py-1.5">Set Reminder</Button>
              </Card>
-             <Card className="p-6 bg-slate-900 text-white border-none">
-                <History size={24} className="mb-4 text-slate-300" />
-                <h3 className="font-bold mb-1">System Log: Nutrient Change</h3>
-                <p className="text-slate-400 text-xs mb-4">Last full water and nutrient flush completed 12 days ago.</p>
-                <Button variant="secondary" className="bg-slate-400/20 text-white border-none hover:bg-slate-400/30 text-xs py-1.5">View System History</Button>
+             <Card className="p-5 md:p-6 bg-slate-900 text-white border-none">
+                <History size={24} className="mb-3 md:mb-4 text-slate-300" />
+                <h3 className="text-sm md:text-base font-bold mb-1">System Log: Nutrient Change</h3>
+                <p className="text-slate-400 text-[10px] md:text-xs mb-4">Last full water and nutrient flush completed 12 days ago.</p>
+                <Button variant="secondary" className="bg-slate-400/20 text-white border-none hover:bg-slate-400/30 text-[10px] md:text-xs py-1.5">View System History</Button>
              </Card>
            </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="lg:col-span-4 space-y-6">
            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Active Tasks</h3>
            <div className="space-y-3">
               {reminders.map(r => (
-                <Card key={r.id} className={`p-4 transition-all ${r.completed ? 'opacity-40 scale-95' : 'hover:shadow-md'}`}>
+                <Card key={r.id} className={`p-3 md:p-4 transition-all ${r.completed ? 'opacity-40 scale-95' : 'hover:shadow-md'}`}>
                   <div className="flex items-start gap-3">
                     <button 
                       onClick={() => setReminders(reminders.map(rem => rem.id === r.id ? {...rem, completed: !rem.completed} : rem))}
@@ -1167,57 +1167,57 @@ export default function App() {
   );
 
   const SettingsView = () => (
-    <div className="animate-fade-in max-w-2xl mx-auto space-y-8 pb-20">
+    <div className="animate-fade-in max-w-2xl mx-auto space-y-6 md:space-y-8 pb-24">
       <div>
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight">System Configuration</h1>
-        <p className="text-slate-400 text-sm font-medium">Manage your profile and platform preferences</p>
+        <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">System Configuration</h1>
+        <p className="text-slate-400 text-xs md:sm font-medium">Manage your profile and platform preferences</p>
       </div>
 
-      <Card className="p-8 space-y-8">
-        <div className="flex items-center gap-6 pb-8 border-b border-slate-100">
-          <div className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-emerald-200">
+      <Card className="p-5 md:p-8 space-y-6 md:space-y-8">
+        <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-6 pb-6 md:pb-8 border-b border-slate-100 text-center sm:text-left">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl md:rounded-3xl bg-emerald-600 flex items-center justify-center text-white text-2xl md:text-3xl font-black shadow-xl shadow-emerald-200">
             {profile.name[0]}
           </div>
-          <div>
-            <h3 className="text-xl font-black text-slate-800 mb-1">{profile.name}</h3>
-            <p className="text-slate-400 text-sm font-medium">hydro-pro-member#9281</p>
-            <div className="flex gap-2 mt-3">
+          <div className="flex-grow">
+            <h3 className="text-lg md:text-xl font-black text-slate-800 mb-1">{profile.name}</h3>
+            <p className="text-slate-400 text-xs md:sm font-medium">hydro-pro-member#9281</p>
+            <div className="flex justify-center sm:justify-start gap-2 mt-3">
               <Button variant="secondary" className="py-1 px-3 text-[10px]">Change Photo</Button>
               <Button variant="ghost" className="py-1 px-3 text-[10px]">Edit Name</Button>
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Interface Settings</h4>
-          <div className="space-y-2">
+          <div className="space-y-1 md:space-y-2">
             {[
               { icon: Moon, label: 'Dark Mode', desc: 'Sync with system appearance', toggle: true, checked: false },
               { icon: Bell, label: 'Notifications', desc: 'Push alerts for system maintenance', toggle: true, checked: true },
               { icon: Database, label: 'Local Backup', desc: 'Keep redundant offline copies of your data', toggle: true, checked: true },
               { icon: User, label: 'Visibility', desc: 'Show garden stats to growing community', toggle: true, checked: false },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer group">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 bg-slate-100 text-slate-400 rounded-xl group-hover:bg-white group-hover:shadow-sm group-hover:text-emerald-600 transition-all">
+              <div key={i} className="flex items-center justify-between p-3 md:p-4 hover:bg-slate-50 rounded-xl md:rounded-2xl transition-all cursor-pointer group">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="p-2 md:p-2.5 bg-slate-100 text-slate-400 rounded-lg md:rounded-xl group-hover:bg-white group-hover:shadow-sm group-hover:text-emerald-600 transition-all">
                     <item.icon size={18} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-700">{item.label}</p>
-                    <p className="text-[10px] text-slate-400 font-medium">{item.desc}</p>
+                    <p className="text-xs md:text-sm font-bold text-slate-700">{item.label}</p>
+                    <p className="text-[9px] md:text-[10px] text-slate-400 font-medium">{item.desc}</p>
                   </div>
                 </div>
-                <div className={`w-10 h-5 rounded-full transition-all relative ${item.checked ? 'bg-emerald-500' : 'bg-slate-200'}`}>
-                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${item.checked ? 'right-1' : 'left-1'}`}></div>
+                <div className={`w-8 h-4 md:w-10 md:h-5 rounded-full transition-all relative ${item.checked ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                  <div className={`absolute top-0.5 md:top-1 w-3 h-3 bg-white rounded-full transition-all ${item.checked ? 'right-0.5 md:right-1' : 'left-0.5 md:left-1'}`}></div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
-           <Button variant="danger" className="px-6">Delete All Garden Data</Button>
-           <Button variant="coffee" className="px-6" onClick={() => window.open('https://paypal.me/hydrogrow', '_blank')}>Support HydroGrow Pro</Button>
+        <div className="pt-6 md:pt-8 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+           <Button variant="danger" className="w-full sm:w-auto px-6 text-xs">Delete All Garden Data</Button>
+           <Button variant="coffee" className="w-full sm:w-auto px-6 text-xs" onClick={() => window.open('https://paypal.me/hydrogrow', '_blank')}>Support HydroGrow Pro</Button>
         </div>
       </Card>
 
@@ -1229,9 +1229,9 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen pb-10 max-w-7xl mx-auto px-4 md:px-8 pt-6">
+    <div className="min-h-screen pb-24 md:pb-10 max-w-7xl mx-auto px-4 md:px-8 pt-4 md:pt-6">
       {/* Dynamic View Header/Wrapper */}
-      <main>
+      <main className="pb-10">
         {view === 'dashboard' && <DashboardView />}
         {view === 'gardens' && <GardensView />}
         {view === 'assistant' && <AssistantView />}
@@ -1239,9 +1239,9 @@ export default function App() {
         {view === 'settings' && <SettingsView />}
       </main>
 
-      {/* Persistent Navigation Bar (Mobile) */}
-      <nav className="fixed bottom-6 left-6 right-6 z-50 md:left-1/2 md:-translate-x-1/2 md:max-w-md lg:max-w-lg">
-        <Card className="rounded-[2.5rem] shadow-2xl p-2.5 flex justify-between bg-white/95 backdrop-blur-xl border-white/50 ring-1 ring-slate-900/5">
+      {/* Persistent Navigation Bar (Mobile/Tablet) */}
+      <nav className="fixed bottom-4 left-4 right-4 z-50 md:left-1/2 md:-translate-x-1/2 md:max-w-md lg:max-w-lg landscape:bottom-2">
+        <Card className="rounded-[2.5rem] shadow-2xl p-1.5 md:p-2.5 flex justify-between bg-white/95 backdrop-blur-xl border-white/50 ring-1 ring-slate-900/5">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
             { id: 'gardens', icon: Sprout, label: 'Gardens' },
@@ -1252,10 +1252,10 @@ export default function App() {
             <button
               key={nav.id}
               onClick={() => setView(nav.id as any)}
-              className={`flex-grow flex flex-col items-center justify-center p-3 rounded-[2rem] transition-all relative ${view === nav.id ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex-grow flex flex-col items-center justify-center p-2 md:p-3 rounded-[2rem] transition-all relative ${view === nav.id ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <nav.icon size={22} strokeWidth={view === nav.id ? 2.5 : 2} />
-              <span className={`text-[9px] font-black uppercase mt-1 tracking-widest ${view === nav.id ? 'opacity-100' : 'opacity-0'}`}>{nav.label}</span>
+              <nav.icon size={20} className="md:w-[22px] md:h-[22px]" strokeWidth={view === nav.id ? 2.5 : 2} />
+              <span className={`text-[8px] md:text-[9px] font-black uppercase mt-1 tracking-widest ${view === nav.id ? 'opacity-100' : 'opacity-0 hidden sm:block'}`}>{nav.label}</span>
               {view === nav.id && <div className="absolute -top-1 w-1 h-1 bg-emerald-600 rounded-full"></div>}
             </button>
           ))}
