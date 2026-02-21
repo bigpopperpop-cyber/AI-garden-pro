@@ -1,10 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Garden, AIAnalysisResult, GrowthInsights, LifecycleStage } from "../types";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 export const analyzePlantHealth = async (imageBase64: string): Promise<AIAnalysisResult> => {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   
   // Strip the prefix if it exists (e.g., "data:image/png;base64,")
@@ -50,6 +58,7 @@ export const analyzePlantHealth = async (imageBase64: string): Promise<AIAnalysi
 };
 
 export const getGrowthInsights = async (garden: Garden): Promise<GrowthInsights> => {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   const gardenContext = JSON.stringify(garden);
 
@@ -78,6 +87,7 @@ export const getGrowthInsights = async (garden: Garden): Promise<GrowthInsights>
 };
 
 export const processNaturalLanguageLog = async (text: string) => {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   
   const response = await ai.models.generateContent({
@@ -118,6 +128,7 @@ export const processNaturalLanguageLog = async (text: string) => {
 };
 
 export const getTroubleshootingAdvice = async (query: string, gardens: Garden[]): Promise<string> => {
+  const ai = getAI();
   const model = "gemini-3.1-pro-preview";
   const context = JSON.stringify(gardens);
 

@@ -7,7 +7,9 @@
 @layer base {
   html, body {
     @apply h-full overflow-x-hidden;
-    /* Prevent pull-to-refresh on mobile if desired */
+    background-color: #f8fafc;
+    color: #0f172a;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     overscroll-behavior-y: none;
   }
 }
@@ -24,6 +26,18 @@
   
   .custom-scrollbar::-webkit-scrollbar-thumb {
     @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   /* Landscape specific tweaks */
