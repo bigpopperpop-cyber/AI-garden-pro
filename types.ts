@@ -61,4 +61,28 @@ export interface Notification {
   type: 'maintenance' | 'alert' | 'tip';
 }
 
-export type ViewState = 'dashboard' | 'gardens' | 'calendar' | 'settings';
+export type ViewState = 'dashboard' | 'gardens' | 'calendar' | 'settings' | 'assistant';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  timestamp: string;
+}
+
+export interface AIAnalysisResult {
+  healthStatus: 'Healthy' | 'Warning' | 'Critical';
+  diagnosis: string;
+  recommendations: string[];
+  detectedPests?: string[];
+  detectedDeficiencies?: string[];
+  stageVerification?: LifecycleStage;
+}
+
+export interface GrowthInsights {
+  nutrientAdvice: string;
+  phTarget: string;
+  ecTarget: string;
+  harvestPrediction: string;
+  generalTips: string[];
+}
