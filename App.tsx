@@ -66,8 +66,9 @@ import * as aiService from './services/geminiService';
 // --- UI Components ---
 
 // Fix: Added onClick prop to Card component to handle click events used in various views
-const Card = ({ children, className = "", onClick }: { children: React.ReactNode, className?: string, onClick?: () => void }) => (
+const Card = ({ children, className = "", onClick, ...props }: { children: React.ReactNode, className?: string, onClick?: () => void, [key: string]: any }) => (
   <div 
+    {...props}
     onClick={onClick}
     className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${className}`}
   >
@@ -180,12 +181,16 @@ export default function App() {
       notes: []
     };
     setGardens([...gardens, newGarden]);
+    if (!selectedGardenId) {
+      setSelectedGardenId(newGarden.id);
+    }
     setIsAddGardenOpen(false);
   };
 
   const handleAddPlant = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedGardenId) return;
+    const targetId = selectedGardenId || gardens[0]?.id;
+    if (!targetId) return;
     
     const formData = new FormData(e.currentTarget);
     const newPlant: Plant = {
@@ -200,7 +205,7 @@ export default function App() {
     };
 
     setGardens(gardens.map(g => 
-      g.id === selectedGardenId 
+      g.id === targetId 
         ? { ...g, plants: [...g.plants, newPlant] }
         : g
     ));
@@ -780,7 +785,10 @@ export default function App() {
                       ))}
                       
                       <button 
-                        onClick={() => setIsAddPlantOpen(true)}
+                        onClick={() => {
+                          setSelectedGardenId(selectedGarden?.id || gardens[0]?.id);
+                          setIsAddPlantOpen(true);
+                        }}
                         className="aspect-[4/3] sm:aspect-auto sm:min-h-[250px] border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50/30 transition-all group"
                       >
                         <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3 group-hover:bg-emerald-100 transition-colors">
