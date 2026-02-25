@@ -436,6 +436,13 @@ export default function App() {
           <p className="text-slate-400 text-sm font-medium">Welcome back, {profile.name}</p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setView('manual')}
+            className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm text-slate-500 hover:text-emerald-600 transition-colors"
+            title="User Manual"
+          >
+            <Notebook size={20} />
+          </button>
           <button className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm text-slate-500 hover:text-emerald-600 transition-colors relative">
             <Bell size={20} />
             <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
@@ -1174,6 +1181,80 @@ export default function App() {
     </div>
   );
 
+  const ManualView = () => (
+    <div className="animate-fade-in max-w-3xl mx-auto space-y-8 pb-24">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" onClick={() => setView('settings')} className="p-2">
+          <ChevronLeft size={24} />
+        </Button>
+        <div>
+          <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">User Manual</h1>
+          <p className="text-slate-400 text-xs md:sm font-medium">Learn how to master your hydroponic system</p>
+        </div>
+      </div>
+
+      <div className="grid gap-6">
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-3 text-emerald-600">
+            <LayoutDashboard size={24} />
+            <h2 className="text-lg font-bold">Dashboard Overview</h2>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            The dashboard gives you a bird's-eye view of your entire operation. Monitor total plant counts, active systems, and your total yield history. Use the "Quick Log" to record pH or EC readings using natural language.
+          </p>
+        </Card>
+
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-3 text-emerald-600">
+            <Sprout size={24} />
+            <h2 className="text-lg font-bold">Managing Gardens & Specimens</h2>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Create "Systems" (Gardens) for different setups (e.g., Indoor Tent, Balcony). Inside each system, add "Specimens" (Plants). You can track each plant's growth stage from Germination to Harvest.
+          </p>
+        </Card>
+
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-3 text-emerald-600">
+            <Bot size={24} />
+            <h2 className="text-lg font-bold">AI Assistant & Analysis</h2>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Our AI can help you troubleshoot issues. Upload a photo of a plant to get a health analysis, or ask the AI for specific nutrient advice. The AI understands natural language, so you can just talk to it like a pro grower.
+          </p>
+        </Card>
+
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-3 text-emerald-600">
+            <Calendar size={24} />
+            <h2 className="text-lg font-bold">Task Management</h2>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Never miss a reservoir change or nutrient top-up. The Tasks view lists all your upcoming reminders. The AI can even suggest reminders based on your logs!
+          </p>
+        </Card>
+      </div>
+
+      <Card className="p-8 bg-slate-900 text-white border-none">
+        <h3 className="text-xl font-bold mb-4">Pro Tips</h3>
+        <ul className="space-y-3 text-sm text-slate-300">
+          <li className="flex gap-2">
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+            <span>Always calibrate your pH meters weekly for accurate readings.</span>
+          </li>
+          <li className="flex gap-2">
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+            <span>Use the AI Analysis feature if you see any leaf discoloration early.</span>
+          </li>
+          <li className="flex gap-2">
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+            <span>Keep your water temperature stable to prevent root rot.</span>
+          </li>
+        </ul>
+      </Card>
+    </div>
+  );
+
   const SettingsView = () => (
     <div className="animate-fade-in max-w-2xl mx-auto space-y-6 md:space-y-8 pb-24">
       <div>
@@ -1204,8 +1285,9 @@ export default function App() {
               { icon: Bell, label: 'Notifications', desc: 'Push alerts for system maintenance', toggle: true, checked: true },
               { icon: Database, label: 'Local Backup', desc: 'Keep redundant offline copies of your data', toggle: true, checked: true },
               { icon: User, label: 'Visibility', desc: 'Show garden stats to growing community', toggle: true, checked: false },
+              { icon: Notebook, label: 'User Manual', desc: 'Read the guide on how to use the app', onClick: () => setView('manual') },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-3 md:p-4 hover:bg-slate-50 rounded-xl md:rounded-2xl transition-all cursor-pointer group">
+              <div key={i} onClick={item.onClick} className="flex items-center justify-between p-3 md:p-4 hover:bg-slate-50 rounded-xl md:rounded-2xl transition-all cursor-pointer group">
                 <div className="flex items-center gap-3 md:gap-4">
                   <div className="p-2 md:p-2.5 bg-slate-100 text-slate-400 rounded-lg md:rounded-xl group-hover:bg-white group-hover:shadow-sm group-hover:text-emerald-600 transition-all">
                     <item.icon size={18} />
@@ -1215,9 +1297,13 @@ export default function App() {
                     <p className="text-[9px] md:text-[10px] text-slate-400 font-medium">{item.desc}</p>
                   </div>
                 </div>
-                <div className={`w-8 h-4 md:w-10 md:h-5 rounded-full transition-all relative ${item.checked ? 'bg-emerald-500' : 'bg-slate-200'}`}>
-                  <div className={`absolute top-0.5 md:top-1 w-3 h-3 bg-white rounded-full transition-all ${item.checked ? 'right-0.5 md:right-1' : 'left-0.5 md:left-1'}`}></div>
-                </div>
+                {item.toggle ? (
+                  <div className={`w-8 h-4 md:w-10 md:h-5 rounded-full transition-all relative ${item.checked ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                    <div className={`absolute top-0.5 md:top-1 w-3 h-3 bg-white rounded-full transition-all ${item.checked ? 'right-0.5 md:right-1' : 'left-0.5 md:left-1'}`}></div>
+                  </div>
+                ) : (
+                  <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-400 transition-all" />
+                )}
               </div>
             ))}
           </div>
@@ -1245,6 +1331,7 @@ export default function App() {
         {view === 'assistant' && <AssistantView />}
         {view === 'calendar' && <CalendarView />}
         {view === 'settings' && <SettingsView />}
+        {view === 'manual' && <ManualView />}
       </main>
 
       {/* Persistent Navigation Bar (Mobile/Tablet) */}

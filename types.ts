@@ -61,7 +61,7 @@ export interface Notification {
   type: 'maintenance' | 'alert' | 'tip';
 }
 
-export type ViewState = 'dashboard' | 'gardens' | 'calendar' | 'settings' | 'assistant';
+export type ViewState = 'dashboard' | 'gardens' | 'calendar' | 'settings' | 'assistant' | 'manual';
 
 export interface ChatMessage {
   id: string;
