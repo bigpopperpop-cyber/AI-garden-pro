@@ -62,6 +62,7 @@ import {
   GrowthInsights
 } from './types';
 import * as aiService from './services/geminiService';
+import { compressImage } from './utils/imageUtils';
 
 // --- UI Components ---
 
@@ -141,6 +142,7 @@ export default function App() {
   const [isFetchingInsights, setIsFetchingInsights] = useState(false);
   const [quickLogText, setQuickLogText] = useState("");
   const [isProcessingLog, setIsProcessingLog] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState<string | null>(null); // stage name
 
   // Load persistence
   useEffect(() => {
@@ -155,7 +157,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('hydrogrow_data', JSON.stringify({ gardens, reminders }));
+    try {
+      localStorage.setItem('hydrogrow_data', JSON.stringify({ gardens, reminders }));
+    } catch (e) {
+      console.error("Failed to save data to localStorage. It might be full.", e);
+      // If it's a quota error, we might want to alert the user or try to clear old data
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        setCopyFeedback("Storage full! Try removing some photos.");
+        setTimeout(() => setCopyFeedback(null), 3000);
+      }
+    }
   }, [gardens, reminders]);
 
   // Derived data
@@ -902,22 +913,45 @@ export default function App() {
                           const input = document.createElement('input');
                           input.type = 'file';
                           input.accept = 'image/*';
-                          input.onchange = (e: any) => {
+                          input.onchange = async (e: any) => {
+                            if (!inspectedPlant) return;
                             const file = e.target.files[0];
+                            if (!file) return;
+
+                            setIsProcessingImage(stage);
                             const reader = new FileReader();
-                            reader.onload = (re) => {
-                              const base64 = re.target?.result as string;
-                              handleUpdatePlant(inspectedPlant.id, {
-                                phasePhotos: { ...inspectedPlant.phasePhotos, [stage]: base64 }
-                              });
+                            reader.onload = async (re) => {
+                              try {
+                                const rawBase64 = re.target?.result as string;
+                                // Compress image to prevent localStorage quota issues and improve performance
+                                const compressedBase64 = await compressImage(rawBase64, 1024, 1024, 0.7);
+                                
+                                // Re-check inspectedPlant inside async callback to prevent crash
+                                if (inspectedPlant) {
+                                  handleUpdatePlant(inspectedPlant.id, {
+                                    phasePhotos: { ...(inspectedPlant.phasePhotos || {}), [stage]: compressedBase64 }
+                                  });
+                                }
+                              } catch (err) {
+                                console.error("Image processing failed", err);
+                                alert("Failed to process image. It might be too large or corrupted.");
+                              } finally {
+                                setIsProcessingImage(null);
+                              }
                             };
                             reader.readAsDataURL(file);
                           };
                           input.click();
                         }}
-                        className={`w-full aspect-square rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden group relative ${inspectedPlant.phasePhotos?.[stage] ? 'border-emerald-100' : 'border-slate-100 hover:border-emerald-200'}`}
+                        className={`w-full aspect-square rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden group relative ${inspectedPlant.phasePhotos?.[stage] ? 'border-emerald-100' : 'border-slate-100 hover:border-emerald-200'} ${isProcessingImage === stage ? 'opacity-50 cursor-wait' : ''}`}
+                        disabled={!!isProcessingImage}
                       >
-                        {inspectedPlant.phasePhotos?.[stage] ? (
+                        {isProcessingImage === stage ? (
+                          <div className="flex flex-col items-center text-emerald-500 animate-pulse">
+                            <Zap size={24} className="mb-2" />
+                            <p className="text-[8px] font-black uppercase tracking-widest">Processing...</p>
+                          </div>
+                        ) : inspectedPlant.phasePhotos?.[stage] ? (
                           <>
                             <img src={inspectedPlant.phasePhotos[stage]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                             <button 
